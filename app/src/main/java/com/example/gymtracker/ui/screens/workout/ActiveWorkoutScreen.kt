@@ -2,7 +2,6 @@ package com.example.gymtracker.ui.screens.workout
 
 import android.app.Activity
 import android.view.WindowManager
-import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -35,6 +34,7 @@ fun ActiveWorkoutScreen(
     var selectedGroupFilter by remember { mutableStateOf<MuscleGroup?>(null) }
     var newExerciseName by remember { mutableStateOf("") }
 
+    // Экран не гаснет во время активной тренировки
     DisposableEffect(Unit) {
         val window = (context as? Activity)?.window
         window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -47,52 +47,17 @@ fun ActiveWorkoutScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text("Тренировка", style = MaterialTheme.typography.titleMedium)
-                        val mins = state.durationSeconds / 60
-                        val secs = state.durationSeconds % 60
-                        Text(
-                            String.format("%02d:%02d", mins, secs),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
+                    Text("Запись тренировки", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 },
                 actions = {
-                    Button(onClick = { viewModel.saveWorkout(onWorkoutFinished) }) {
+                    Button(
+                        onClick = { viewModel.saveWorkout(onWorkoutFinished) },
+                        enabled = state.exercises.isNotEmpty() // Запрет завершения, если нет упражнений
+                    ) {
                         Text("Завершить")
                     }
                 }
             )
-        },
-        bottomBar = {
-            AnimatedVisibility(
-                visible = state.isTimerActive,
-                enter = slideInVertically { it },
-                exit = slideOutVertically { it }
-            ) {
-                Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    tonalElevation = 8.dp,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Timer, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                "Отдых: ${state.restTimerRemainingSeconds} с",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
         }
     ) { padding ->
         LazyColumn(
@@ -101,6 +66,23 @@ fun ActiveWorkoutScreen(
                 .padding(padding)
                 .padding(horizontal = 12.dp)
         ) {
+            if (state.exercises.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 48.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Упражнения ещё не добавлены.\nНажмите кнопку ниже, чтобы выбрать упражнение.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
             itemsIndexed(state.exercises) { exIndex, exerciseItem ->
                 Card(
                     modifier = Modifier
@@ -109,16 +91,24 @@ fun ActiveWorkoutScreen(
                     elevation = CardDefaults.cardElevation(2.dp)
                 ) {
                     Column(Modifier.padding(12.dp)) {
-                        Text(
-                            text = exerciseItem.exercise.name,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = exerciseItem.exercise.muscleGroup.titleRu,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = exerciseItem.exercise.name,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = exerciseItem.exercise.muscleGroup.titleRu,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.secondary
+                                )
+                            }
+                        }
 
                         Spacer(Modifier.height(8.dp))
 
@@ -199,7 +189,7 @@ fun ActiveWorkoutScreen(
                     Spacer(Modifier.width(8.dp))
                     Text("Добавить упражнение", fontSize = 16.sp)
                 }
-                Spacer(Modifier.height(80.dp))
+                Spacer(Modifier.height(40.dp))
             }
         }
     }

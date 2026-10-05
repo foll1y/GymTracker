@@ -7,8 +7,10 @@ import com.example.gymtracker.data.local.dao.WorkoutDao
 import com.example.gymtracker.data.local.entity.*
 import com.example.gymtracker.data.model.MuscleGroup
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 data class EditableSet(
@@ -27,11 +29,8 @@ data class EditableExercise(
 
 data class ActiveWorkoutUiState(
     val workoutDate: Long = System.currentTimeMillis(),
-    val durationSeconds: Long = 0,
     val note: String = "",
     val exercises: List<EditableExercise> = emptyList(),
-    val isTimerActive: Boolean = false,
-    val restTimerRemainingSeconds: Int = 0,
     val isExerciseSearchOpen: Boolean = false
 )
 
@@ -45,23 +44,6 @@ class WorkoutViewModel @Inject constructor(
     val uiState: StateFlow<ActiveWorkoutUiState> = _uiState.asStateFlow()
 
     val allExercises: Flow<List<ExerciseEntity>> = exerciseDao.getAllExercises()
-
-    private var timerJob: Job? = null
-    private var restJob: Job? = null
-
-    init {
-        startWorkoutDurationTimer()
-    }
-
-    private fun startWorkoutDurationTimer() {
-        timerJob?.cancel()
-        timerJob = viewModelScope.launch {
-            while (isActive) {
-                delay(1000)
-                _uiState.update { it.copy(durationSeconds = it.durationSeconds + 1) }
-            }
-        }
-    }
 
     fun addExercise(exercise: ExerciseEntity) {
         viewModelScope.launch {
@@ -119,37 +101,22 @@ class WorkoutViewModel @Inject constructor(
         _uiState.update { it.copy(exercises = currentList) }
     }
 
-    fun completeSet(exerciseIndex: Int, setIndex: Int, isChecked: Boolean, restTimeSeconds: Int = 90) {
+    fun completeSet(exerciseIndex: Int, setIndex: Int, isChecked: Boolean) {
         val currentList = _uiState.value.exercises.toMutableList()
         currentList[exerciseIndex].sets[setIndex].isCompleted = isChecked
         _uiState.update { it.copy(exercises = currentList) }
-
-        if (isChecked) {
-            startRestTimer(restTimeSeconds)
-        }
-    }
-
-    private fun startRestTimer(seconds: Int) {
-        restJob?.cancel()
-        restJob = viewModelScope.launch {
-            _uiState.update { it.copy(isTimerActive = true, restTimerRemainingSeconds = seconds) }
-            for (remaining in seconds downTo 1) {
-                delay(1000)
-                _uiState.update { it.copy(restTimerRemainingSeconds = remaining - 1) }
-            }
-            _uiState.update { it.copy(isTimerActive = false) }
-        }
     }
 
     fun saveWorkout(onSuccess: () -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             val state = _uiState.value
+            // Нельзя сохранить, если нет упражнений
             if (state.exercises.isEmpty()) return@launch
 
             val workoutId = workoutDao.insertWorkout(
                 WorkoutEntity(
                     dateEpochMillis = state.workoutDate,
-                    durationMinutes = (state.durationSeconds / 60).toInt(),
+                    durationMinutes = 0,
                     note = state.note
                 )
             )
