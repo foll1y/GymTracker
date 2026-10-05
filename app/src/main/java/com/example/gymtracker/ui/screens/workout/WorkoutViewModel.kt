@@ -15,23 +15,22 @@ import javax.inject.Inject
 
 data class EditableSet(
     val id: Long = 0,
-    var weight: String = "",
-    var reps: String = "",
-    var isCompleted: Boolean = false,
+    val weight: String = "",
+    val reps: String = "",
+    val isCompleted: Boolean = false,
     val previousWeight: Float? = null,
     val previousReps: Int? = null
 )
 
 data class EditableExercise(
     val exercise: ExerciseEntity,
-    val sets: MutableList<EditableSet> = mutableListOf()
+    val sets: List<EditableSet> = emptyList()
 )
 
 data class ActiveWorkoutUiState(
     val workoutDate: Long = System.currentTimeMillis(),
     val note: String = "",
-    val exercises: List<EditableExercise> = emptyList(),
-    val isExerciseSearchOpen: Boolean = false
+    val exercises: List<EditableExercise> = emptyList()
 )
 
 @HiltViewModel
@@ -51,8 +50,8 @@ class WorkoutViewModel @Inject constructor(
             val initialSet = if (lastSets.isNotEmpty()) {
                 val last = lastSets.first()
                 EditableSet(
-                    weight = last.weightKg.toString(),
-                    reps = last.reps.toString(),
+                    weight = if (last.weightKg > 0) last.weightKg.toString() else "",
+                    reps = if (last.reps > 0) last.reps.toString() else "",
                     previousWeight = last.weightKg,
                     previousReps = last.reps
                 )
@@ -61,8 +60,8 @@ class WorkoutViewModel @Inject constructor(
             }
 
             val currentList = _uiState.value.exercises.toMutableList()
-            currentList.add(EditableExercise(exercise = exercise, sets = mutableListOf(initialSet)))
-            _uiState.update { it.copy(exercises = currentList, isExerciseSearchOpen = false) }
+            currentList.add(EditableExercise(exercise = exercise, sets = listOf(initialSet)))
+            _uiState.update { it.copy(exercises = currentList) }
         }
     }
 
@@ -75,42 +74,78 @@ class WorkoutViewModel @Inject constructor(
         }
     }
 
-    fun addSet(exerciseIndex: Int) {
-        val currentList = _uiState.value.exercises.toMutableList()
-        val target = currentList[exerciseIndex]
-        val lastSet = target.sets.lastOrNull()
-
-        val newSet = if (lastSet != null) {
-            EditableSet(
-                weight = lastSet.weight,
-                reps = lastSet.reps,
-                previousWeight = lastSet.previousWeight,
-                previousReps = lastSet.previousReps
-            )
-        } else {
-            EditableSet(weight = "", reps = "")
+    fun updateSetWeight(exerciseIndex: Int, setIndex: Int, newWeight: String) {
+        val updatedExercises = _uiState.value.exercises.mapIndexed { exIdx, ex ->
+            if (exIdx == exerciseIndex) {
+                val updatedSets = ex.sets.mapIndexed { sIdx, s ->
+                    if (sIdx == setIndex) s.copy(weight = newWeight) else s
+                }
+                ex.copy(sets = updatedSets)
+            } else ex
         }
+        _uiState.update { it.copy(exercises = updatedExercises) }
+    }
 
-        target.sets.add(newSet)
-        _uiState.update { it.copy(exercises = currentList) }
+    fun updateSetReps(exerciseIndex: Int, setIndex: Int, newReps: String) {
+        val updatedExercises = _uiState.value.exercises.mapIndexed { exIdx, ex ->
+            if (exIdx == exerciseIndex) {
+                val updatedSets = ex.sets.mapIndexed { sIdx, s ->
+                    if (sIdx == setIndex) s.copy(reps = newReps) else s
+                }
+                ex.copy(sets = updatedSets)
+            } else ex
+        }
+        _uiState.update { it.copy(exercises = updatedExercises) }
+    }
+
+    fun addSet(exerciseIndex: Int) {
+        val updatedExercises = _uiState.value.exercises.mapIndexed { exIdx, ex ->
+            if (exIdx == exerciseIndex) {
+                val lastSet = ex.sets.lastOrNull()
+                val newSet = if (lastSet != null) {
+                    EditableSet(
+                        weight = lastSet.weight,
+                        reps = lastSet.reps,
+                        previousWeight = lastSet.previousWeight,
+                        previousReps = lastSet.previousReps
+                    )
+                } else {
+                    EditableSet(weight = "", reps = "")
+                }
+                ex.copy(sets = ex.sets + newSet)
+            } else ex
+        }
+        _uiState.update { it.copy(exercises = updatedExercises) }
     }
 
     fun removeSet(exerciseIndex: Int, setIndex: Int) {
-        val currentList = _uiState.value.exercises.toMutableList()
-        currentList[exerciseIndex].sets.removeAt(setIndex)
-        _uiState.update { it.copy(exercises = currentList) }
+        val updatedExercises = _uiState.value.exercises.mapIndexed { exIdx, ex ->
+            if (exIdx == exerciseIndex) {
+                val updatedSets = ex.sets.toMutableList()
+                if (setIndex in updatedSets.indices) {
+                    updatedSets.removeAt(setIndex)
+                }
+                ex.copy(sets = updatedSets)
+            } else ex
+        }
+        _uiState.update { it.copy(exercises = updatedExercises) }
     }
 
     fun completeSet(exerciseIndex: Int, setIndex: Int, isChecked: Boolean) {
-        val currentList = _uiState.value.exercises.toMutableList()
-        currentList[exerciseIndex].sets[setIndex].isCompleted = isChecked
-        _uiState.update { it.copy(exercises = currentList) }
+        val updatedExercises = _uiState.value.exercises.mapIndexed { exIdx, ex ->
+            if (exIdx == exerciseIndex) {
+                val updatedSets = ex.sets.mapIndexed { sIdx, s ->
+                    if (sIdx == setIndex) s.copy(isCompleted = isChecked) else s
+                }
+                ex.copy(sets = updatedSets)
+            } else ex
+        }
+        _uiState.update { it.copy(exercises = updatedExercises) }
     }
 
     fun saveWorkout(onSuccess: () -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             val state = _uiState.value
-            // Нельзя сохранить, если нет упражнений
             if (state.exercises.isEmpty()) return@launch
 
             val workoutId = workoutDao.insertWorkout(

@@ -17,12 +17,19 @@ fun LargeNumberInput(
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isDecimal: Boolean = true
 ) {
     OutlinedTextField(
         value = value,
-        onValueChange = { input ->
-            if (input.isEmpty() || input.matches(Regex("^\\d*\\.?\\d*$"))) {
+        onValueChange = { raw ->
+            val input = if (isDecimal) raw.replace(',', '.') else raw
+            val isValid = if (isDecimal) {
+                input.isEmpty() || input.matches(Regex("^\\d*\\.?\\d*$"))
+            } else {
+                input.isEmpty() || input.matches(Regex("^\\d*$"))
+            }
+            if (isValid) {
                 onValueChange(input)
             }
         },
@@ -38,7 +45,9 @@ fun LargeNumberInput(
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
         ),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        keyboardOptions = KeyboardOptions(
+            keyboardType = if (isDecimal) KeyboardType.Decimal else KeyboardType.Number
+        ),
         singleLine = true,
         modifier = modifier
     )
