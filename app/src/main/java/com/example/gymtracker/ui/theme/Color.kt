@@ -15,6 +15,8 @@ val ExpressiveOnSecondaryContainer = Color(0xFFEEDBFF)
 val ExpressiveTertiary = Color(0xFF00E5FF)
 val ExpressiveOnTertiary = Color(0xFF00363D)
 
+val ExpressiveSuccess = Color(0xFF00E676)
+
 val ExpressiveBackground = Color(0xFF0D0F13)
 val ExpressiveOnBackground = Color(0xFFE3E5ED)
 val ExpressiveSurface = Color(0xFF0D0F13)

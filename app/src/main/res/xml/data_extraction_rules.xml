@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
     <cloud-backup>
-        <include domain="database" path="gym_tracker.db" />
+        <include domain="database" />
+        <include domain="sharedpref" />
     </cloud-backup>
 </data-extraction-rules>
