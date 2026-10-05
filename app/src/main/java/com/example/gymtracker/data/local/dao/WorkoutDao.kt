@@ -33,6 +33,9 @@ interface WorkoutDao {
     @Delete
     suspend fun deleteWorkout(workout: WorkoutEntity)
 
+    @Query("UPDATE workouts SET avgHeartRate = :avgHr, maxHeartRate = :maxHr, activeCalories = :calories WHERE id = :workoutId")
+    suspend fun updateWorkoutHealthStats(workoutId: Long, avgHr: Int?, maxHr: Int?, calories: Int?)
+
     @Transaction
     @Query("""
         SELECT s.* FROM set_entries s

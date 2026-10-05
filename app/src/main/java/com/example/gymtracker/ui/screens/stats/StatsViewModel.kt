@@ -25,6 +25,8 @@ data class StatsUiState(
     val totalSets: Int = 0,
     val averageDurationMinutes: Int = 0,
     val currentStreak: Int = 0,
+    val totalCaloriesBurned: Int = 0,
+    val avgHeartRate: Int = 0,
     val muscleDistribution: Map<MuscleGroup, Float> = emptyMap()
 )
 
@@ -71,6 +73,10 @@ class StatsViewModel @Inject constructor(
         val days = workouts.map { TimeUnit.MILLISECONDS.toDays(it.workout.dateEpochMillis) }
         val streak = Formulas.calculateStreak(days)
 
+        val totalCal = filtered.mapNotNull { it.workout.activeCalories }.sum()
+        val hrs = filtered.mapNotNull { it.workout.avgHeartRate }
+        val avgHr = if (hrs.isNotEmpty()) hrs.average().toInt() else 0
+
         StatsUiState(
             selectedPeriod = period,
             totalWorkouts = filtered.size,
@@ -78,6 +84,8 @@ class StatsViewModel @Inject constructor(
             totalSets = totalSets,
             averageDurationMinutes = if (filtered.isNotEmpty()) filtered.sumOf { it.workout.durationMinutes } / filtered.size else 0,
             currentStreak = streak,
+            totalCaloriesBurned = totalCal,
+            avgHeartRate = avgHr,
             muscleDistribution = distribution
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StatsUiState())

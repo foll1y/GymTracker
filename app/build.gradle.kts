@@ -83,6 +83,9 @@ dependencies {
     kapt("com.google.dagger:hilt-compiler:$hiltVersion")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
+    // Health Connect
+    implementation("androidx.health.connect:connect-client:1.1.0-alpha07")
+
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 }

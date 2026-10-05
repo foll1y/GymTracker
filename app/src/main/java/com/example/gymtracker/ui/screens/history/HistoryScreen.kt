@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,10 +21,12 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.gymtracker.data.health.HealthConnectManager
 import com.example.gymtracker.data.local.dao.WorkoutDao
 import com.example.gymtracker.data.local.entity.WorkoutEntity
 import com.example.gymtracker.data.model.WorkoutWithDetails
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -32,13 +35,31 @@ import javax.inject.Inject
 
 @HiltViewModel
 class HistoryViewModel @Inject constructor(
-    private val workoutDao: WorkoutDao
+    private val workoutDao: WorkoutDao,
+    private val healthConnectManager: HealthConnectManager
 ) : ViewModel() {
     val workouts: Flow<List<WorkoutWithDetails>> = workoutDao.getAllWorkouts()
 
     fun deleteWorkout(workout: WorkoutEntity) {
         viewModelScope.launch {
             workoutDao.deleteWorkout(workout)
+        }
+    }
+
+    fun syncWorkoutWithWatch(workoutDetails: WorkoutWithDetails) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val w = workoutDetails.workout
+            val start = if (w.startTimeEpochMillis > 0) w.startTimeEpochMillis else (w.dateEpochMillis - 3600000L)
+            val end = if (w.endTimeEpochMillis > 0) w.endTimeEpochMillis else w.dateEpochMillis
+            val healthData = healthConnectManager.fetchWorkoutHealthData(start, end)
+            if (healthData.avgHeartRate != null || healthData.activeCalories != null) {
+                workoutDao.updateWorkoutHealthStats(
+                    workoutId = w.id,
+                    avgHr = healthData.avgHeartRate ?: w.avgHeartRate,
+                    maxHr = healthData.maxHeartRate ?: w.maxHeartRate,
+                    calories = healthData.activeCalories ?: w.activeCalories
+                )
+            }
         }
     }
 }
@@ -80,7 +101,8 @@ fun HistoryScreen(viewModel: HistoryViewModel = hiltViewModel()) {
                     WorkoutHistoryCard(
                         workoutDetails = w,
                         dateFormat = dateFormat,
-                        onDelete = { viewModel.deleteWorkout(w.workout) }
+                        onDelete = { viewModel.deleteWorkout(w.workout) },
+                        onSyncWatch = { viewModel.syncWorkoutWithWatch(w) }
                     )
                 }
             }
@@ -92,7 +114,8 @@ fun HistoryScreen(viewModel: HistoryViewModel = hiltViewModel()) {
 fun WorkoutHistoryCard(
     workoutDetails: WorkoutWithDetails,
     dateFormat: SimpleDateFormat,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onSyncWatch: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -125,7 +148,10 @@ fun WorkoutHistoryCard(
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(Modifier.height(4.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Surface(
                             shape = RoundedCornerShape(12.dp),
                             color = MaterialTheme.colorScheme.primaryContainer
@@ -153,6 +179,13 @@ fun WorkoutHistoryCard(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onSyncWatch) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Обновить с часов",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                     IconButton(onClick = onDelete) {
                         Icon(
                             imageVector = Icons.Default.Delete,
@@ -164,6 +197,45 @@ fun WorkoutHistoryCard(
                         imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                         contentDescription = null
                     )
+                }
+            }
+
+            // Блок данных с часов (Пульс и Калории)
+            val w = workoutDetails.workout
+            if (w.avgHeartRate != null || w.activeCalories != null) {
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (w.avgHeartRate != null) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest
+                        ) {
+                            Text(
+                                text = "❤️ ${w.avgHeartRate} уд/мин" + if (w.maxHeartRate != null) " (пик ${w.maxHeartRate})" else "",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                    if (w.activeCalories != null) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest
+                        ) {
+                            Text(
+                                text = "🔥 ${w.activeCalories} ккал",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
                 }
             }
 

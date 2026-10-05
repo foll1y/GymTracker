@@ -13,6 +13,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.gymtracker.data.model.MuscleGroup
 
@@ -65,7 +66,14 @@ fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
             Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 MetricCard("Общий тоннаж", "${(state.totalVolumeKg / 1000).toInt()} т", Modifier.weight(1f))
-                MetricCard("Ср. время", "${state.averageDurationMinutes} мин", Modifier.weight(1f))
+                MetricCard("Калории", if (state.totalCaloriesBurned > 0) "${state.totalCaloriesBurned} ккал" else "—", Modifier.weight(1f))
+            }
+            if (state.avgHeartRate > 0) {
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    MetricCard("Ср. пульс", "❤️ ${state.avgHeartRate} уд/мин", Modifier.weight(1f))
+                    MetricCard("Ср. время", "${state.averageDurationMinutes} мин", Modifier.weight(1f))
+                }
             }
         }
 

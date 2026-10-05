@@ -2,6 +2,7 @@ package com.example.gymtracker.ui.screens.workout
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.gymtracker.data.health.HealthConnectManager
 import com.example.gymtracker.data.local.dao.ExerciseDao
 import com.example.gymtracker.data.local.dao.WorkoutDao
 import com.example.gymtracker.data.local.entity.*
@@ -28,7 +29,7 @@ data class EditableExercise(
 )
 
 data class ActiveWorkoutUiState(
-    val workoutDate: Long = System.currentTimeMillis(),
+    val startTimeEpochMillis: Long = System.currentTimeMillis(),
     val note: String = "",
     val exercises: List<EditableExercise> = emptyList()
 )
@@ -36,7 +37,8 @@ data class ActiveWorkoutUiState(
 @HiltViewModel
 class WorkoutViewModel @Inject constructor(
     private val exerciseDao: ExerciseDao,
-    private val workoutDao: WorkoutDao
+    private val workoutDao: WorkoutDao,
+    private val healthConnectManager: HealthConnectManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ActiveWorkoutUiState())
@@ -148,11 +150,23 @@ class WorkoutViewModel @Inject constructor(
             val state = _uiState.value
             if (state.exercises.isEmpty()) return@launch
 
+            val endTimeEpoch = System.currentTimeMillis()
+            val startTimeEpoch = state.startTimeEpochMillis
+            val durationMin = ((endTimeEpoch - startTimeEpoch) / 60000L).toInt().coerceAtLeast(1)
+
+            // Запрос данных с часов (OHealth через Health Connect)
+            val healthData = healthConnectManager.fetchWorkoutHealthData(startTimeEpoch, endTimeEpoch)
+
             val workoutId = workoutDao.insertWorkout(
                 WorkoutEntity(
-                    dateEpochMillis = state.workoutDate,
-                    durationMinutes = 0,
-                    note = state.note
+                    dateEpochMillis = endTimeEpoch,
+                    durationMinutes = durationMin,
+                    note = state.note,
+                    startTimeEpochMillis = startTimeEpoch,
+                    endTimeEpochMillis = endTimeEpoch,
+                    avgHeartRate = healthData.avgHeartRate,
+                    maxHeartRate = healthData.maxHeartRate,
+                    activeCalories = healthData.activeCalories
                 )
             )
 

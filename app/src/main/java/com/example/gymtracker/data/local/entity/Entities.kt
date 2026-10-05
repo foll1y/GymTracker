@@ -16,7 +16,12 @@ data class WorkoutEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val dateEpochMillis: Long,
     val durationMinutes: Int = 0,
-    val note: String = ""
+    val note: String = "",
+    val startTimeEpochMillis: Long = 0L,
+    val endTimeEpochMillis: Long = 0L,
+    val avgHeartRate: Int? = null,
+    val maxHeartRate: Int? = null,
+    val activeCalories: Int? = null
 )
 
 @Entity(
