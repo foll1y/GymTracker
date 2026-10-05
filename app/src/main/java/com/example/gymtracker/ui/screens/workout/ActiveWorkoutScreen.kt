@@ -2,6 +2,7 @@ package com.example.gymtracker.ui.screens.workout
 
 import android.app.Activity
 import android.view.WindowManager
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -14,6 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -21,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.gymtracker.data.model.MuscleGroup
 import com.example.gymtracker.ui.components.LargeNumberInput
+import com.example.gymtracker.ui.theme.ExpressiveSuccess
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -120,6 +123,20 @@ fun ActiveWorkoutScreen(
                                     fontWeight = FontWeight.SemiBold
                                 )
                             }
+
+                            if (exerciseItem.allTimeMaxWeight > 0f) {
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerHighest
+                                ) {
+                                    Text(
+                                        text = "Рекорд: ${exerciseItem.allTimeMaxWeight} кг",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
                         }
 
                         Spacer(Modifier.height(12.dp))
@@ -130,9 +147,9 @@ fun ActiveWorkoutScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text("Сет", Modifier.weight(0.6f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("Прошлый", Modifier.weight(1.2f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Прошлый", Modifier.weight(1.3f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("Вес (кг)", Modifier.weight(1.5f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("Повт.", Modifier.weight(1.3f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Повт.", Modifier.weight(1.2f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("Готово", Modifier.weight(0.9f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("", Modifier.weight(0.5f))
                         }
@@ -140,6 +157,33 @@ fun ActiveWorkoutScreen(
                         Spacer(Modifier.height(4.dp))
 
                         exerciseItem.sets.forEachIndexed { setIndex, setEntry ->
+                            val currentW = setEntry.weight.toFloatOrNull()
+                            val currentR = setEntry.reps.toIntOrNull()
+                            val prevW = setEntry.previousWeight
+                            val prevR = setEntry.previousReps
+                            val histMax = setEntry.historicalMaxWeight ?: 0f
+
+                            val isPR = currentW != null && currentW > 0f && histMax > 0f && currentW > histMax
+
+                            val deltaText: String? = when {
+                                currentW != null && prevW != null && currentW > prevW -> {
+                                    val diff = ((currentW - prevW) * 10).toInt() / 10f
+                                    "+$diff кг"
+                                }
+                                currentW != null && prevW != null && currentW < prevW -> {
+                                    val diff = ((prevW - currentW) * 10).toInt() / 10f
+                                    "-$diff кг"
+                                }
+                                currentW != null && prevW != null && currentW == prevW && currentR != null && prevR != null && currentR > prevR -> {
+                                    "+${currentR - prevR} повт."
+                                }
+                                currentW != null && prevW != null && currentW == prevW && currentR != null && prevR != null && currentR < prevR -> {
+                                    "-${prevR - currentR} повт."
+                                }
+                                else -> null
+                            }
+                            val isPositiveDelta = deltaText?.startsWith("+") == true
+
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -149,10 +193,21 @@ fun ActiveWorkoutScreen(
                             ) {
                                 Text("${setIndex + 1}", Modifier.weight(0.6f), fontWeight = FontWeight.Bold)
 
-                                val prevText = if (setEntry.previousWeight != null && setEntry.previousReps != null) {
-                                    "${setEntry.previousWeight}×${setEntry.previousReps}"
-                                } else "—"
-                                Text(prevText, Modifier.weight(1.2f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Column(Modifier.weight(1.3f)) {
+                                    val prevText = if (prevW != null && prevR != null) "${prevW}×${prevR}" else "—"
+                                    Text(prevText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    
+                                    if (isPR) {
+                                        Text("🏆 Рекорд", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                    } else if (deltaText != null) {
+                                        Text(
+                                            deltaText,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isPositiveDelta) ExpressiveSuccess else MaterialTheme.colorScheme.outline
+                                        )
+                                    }
+                                }
 
                                 LargeNumberInput(
                                     value = setEntry.weight,
@@ -169,7 +224,7 @@ fun ActiveWorkoutScreen(
                                     onValueChange = { viewModel.updateSetReps(exIndex, setIndex, it) },
                                     placeholder = "0",
                                     isDecimal = false,
-                                    modifier = Modifier.weight(1.3f).height(56.dp)
+                                    modifier = Modifier.weight(1.2f).height(56.dp)
                                 )
 
                                 Checkbox(

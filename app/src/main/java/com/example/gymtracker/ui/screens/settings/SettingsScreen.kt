@@ -1,50 +1,33 @@
 package com.example.gymtracker.ui.screens.settings
 
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Watch
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.health.connect.client.PermissionController
-import com.example.gymtracker.data.health.HealthConnectManager
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
-import javax.inject.Inject
-
-@HiltViewModel
-class SettingsViewModel @Inject constructor(
-    val healthConnectManager: HealthConnectManager
-) : ViewModel() {
-    private val _isHealthConnected = MutableStateFlow(false)
-    val isHealthConnected = _isHealthConnected.asStateFlow()
-
-    init {
-        checkPermissions()
-    }
-
-    fun checkPermissions() {
-        viewModelScope.launch {
-            _isHealthConnected.value = healthConnectManager.hasAllPermissions()
-        }
-    }
-}
+import androidx.health.connect.client.PermissionController
+import java.text.SimpleDateFormat
+import java.util.*
 
 @Composable
 fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
+    val context = LocalContext.current
     var isKg by remember { mutableStateOf(true) }
     val isConnected by viewModel.isHealthConnected.collectAsState()
+    val statusMsg by viewModel.statusMessage.collectAsState()
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = PermissionController.createRequestPermissionResultContract()
@@ -52,88 +35,163 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
         viewModel.checkPermissions()
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Text("Настройки", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        uri?.let { viewModel.exportBackup(context, it) }
+    }
 
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
-        ) {
-            Column(Modifier.padding(16.dp)) {
-                Text("Единицы веса", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = isKg,
-                        onClick = { isKg = true },
-                        shape = RoundedCornerShape(12.dp),
-                        label = { Text("Килограммы (кг)") }
-                    )
-                    FilterChip(
-                        selected = !isKg,
-                        onClick = { isKg = false },
-                        shape = RoundedCornerShape(12.dp),
-                        label = { Text("Фунты (lbs)") }
-                    )
-                }
-            }
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let { viewModel.importBackup(context, it) }
+    }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(statusMsg) {
+        statusMsg?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearStatusMessage()
         }
+    }
 
-        // Карточка подключения часов (Health Connect / OHealth)
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Column(Modifier.padding(16.dp)) {
-                Row(
+            item {
+                Text("Настройки", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            }
+
+            // Единицы веса
+            item {
+                Card(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.Watch,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(Modifier.width(10.dp))
-                        Column {
-                            Text("Смарт-часы (OHealth)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text(
-                                if (isConnected) "Связано через Health Connect" else "Доступ не предоставлен",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (isConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                    Column(Modifier.padding(18.dp)) {
+                        Text("Единицы веса", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(10.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(
+                                selected = isKg,
+                                onClick = { isKg = true },
+                                shape = RoundedCornerShape(12.dp),
+                                label = { Text("Килограммы (кг)") }
+                            )
+                            FilterChip(
+                                selected = !isKg,
+                                onClick = { isKg = false },
+                                shape = RoundedCornerShape(12.dp),
+                                label = { Text("Фунты (lbs)") }
                             )
                         }
                     }
                 }
+            }
 
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    "Позволяет подтягивать пульс и сожжённые калории с ваших часов OnePlus Watch 2.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(Modifier.height(12.dp))
-                Button(
-                    onClick = {
-                        permissionLauncher.launch(viewModel.healthConnectManager.permissions)
-                    },
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isConnected) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.primary
-                    ),
-                    modifier = Modifier.fillMaxWidth()
+            // Резервное копирование и перенос (JSON)
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
                 ) {
-                    Text(if (isConnected) "Обновить разрешения" else "Подключить OHealth / Health Connect")
+                    Column(Modifier.padding(18.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Backup, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(10.dp))
+                            Text("Резервное копирование и перенос", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Экспортируйте файл базы данных, чтобы отправить в Telegram или перенести тренировки на новый телефон.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Spacer(Modifier.height(14.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    val dateStr = SimpleDateFormat("yyyy_MM_dd", Locale.getDefault()).format(Date())
+                                    exportLauncher.launch("gym_tracker_backup_$dateStr.json")
+                                },
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.FileUpload, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Экспорт")
+                            }
+
+                            OutlinedButton(
+                                onClick = { importLauncher.launch("application/json") },
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Импорт")
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Смарт-часы (Health Connect / OHealth)
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                ) {
+                    Column(Modifier.padding(18.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Watch, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(10.dp))
+                            Column {
+                                Text("Смарт-часы (OHealth)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Text(
+                                    if (isConnected) "Связано через Health Connect" else "Доступ не предоставлен",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (isConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            "Автоматически подтягивает пульс и сожжённые калории с ваших часов OnePlus Watch 2.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Spacer(Modifier.height(14.dp))
+                        Button(
+                            onClick = { permissionLauncher.launch(viewModel.healthConnectManager.permissions) },
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isConnected) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.primary
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(if (isConnected) "Обновить разрешения" else "Подключить OHealth / Health Connect")
+                        }
+                    }
                 }
             }
         }

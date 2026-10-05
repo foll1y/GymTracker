@@ -18,6 +18,13 @@ enum class StatsPeriod(val title: String) {
     ALL("Всё")
 }
 
+data class MuscleGroupStat(
+    val group: MuscleGroup,
+    val totalVolumeKg: Double,
+    val totalSets: Int,
+    val share: Float
+)
+
 data class StatsUiState(
     val selectedPeriod: StatsPeriod = StatsPeriod.MONTH,
     val totalWorkouts: Int = 0,
@@ -27,7 +34,7 @@ data class StatsUiState(
     val currentStreak: Int = 0,
     val totalCaloriesBurned: Int = 0,
     val avgHeartRate: Int = 0,
-    val muscleDistribution: Map<MuscleGroup, Float> = emptyMap()
+    val muscleStats: List<MuscleGroupStat> = emptyList()
 )
 
 @HiltViewModel
@@ -53,22 +60,30 @@ class StatsViewModel @Inject constructor(
         var totalVol = 0.0
         var totalSets = 0
         val muscleSetCount = mutableMapOf<MuscleGroup, Int>()
+        val muscleVolumeMap = mutableMapOf<MuscleGroup, Double>()
 
         filtered.forEach { w ->
             w.exercises.forEach { ex ->
                 val group = ex.exercise.muscleGroup
                 ex.sets.forEach { s ->
                     if (s.isCompleted) {
-                        totalVol += (s.weightKg * s.reps)
+                        val vol = (s.weightKg * s.reps).toDouble()
+                        totalVol += vol
                         totalSets++
                         muscleSetCount[group] = (muscleSetCount[group] ?: 0) + 1
+                        muscleVolumeMap[group] = (muscleVolumeMap[group] ?: 0.0) + vol
                     }
                 }
             }
         }
 
         val totalMuscleSets = muscleSetCount.values.sum().toFloat().coerceAtLeast(1f)
-        val distribution = muscleSetCount.mapValues { it.value / totalMuscleSets }
+        val muscleStatsList = MuscleGroup.values().map { group ->
+            val sets = muscleSetCount[group] ?: 0
+            val vol = muscleVolumeMap[group] ?: 0.0
+            val share = sets / totalMuscleSets
+            MuscleGroupStat(group, vol, sets, share)
+        }
 
         val days = workouts.map { TimeUnit.MILLISECONDS.toDays(it.workout.dateEpochMillis) }
         val streak = Formulas.calculateStreak(days)
@@ -86,7 +101,7 @@ class StatsViewModel @Inject constructor(
             currentStreak = streak,
             totalCaloriesBurned = totalCal,
             avgHeartRate = avgHr,
-            muscleDistribution = distribution
+            muscleStats = muscleStatsList
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StatsUiState())
 

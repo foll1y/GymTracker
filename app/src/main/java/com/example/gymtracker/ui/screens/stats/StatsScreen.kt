@@ -31,7 +31,7 @@ fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
     ) {
         item {
             Text(
-                text = "Статистика",
+                text = "Статистика и прогресс",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -77,6 +77,7 @@ fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
             }
         }
 
+        // Прогресс по группам мышц (объём, сеты, доля)
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -85,35 +86,41 @@ fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
             ) {
                 Column(Modifier.padding(20.dp)) {
                     Text(
-                        text = "Распределение нагрузки",
+                        text = "Прогрессия по группам мышц",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(Modifier.height(16.dp))
 
-                    MuscleGroup.values().forEach { group ->
-                        val share = state.muscleDistribution[group] ?: 0f
+                    state.muscleStats.forEach { stat ->
                         Column(Modifier.padding(vertical = 6.dp)) {
                             Row(
                                 Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                Column {
+                                    Text(
+                                        text = stat.group.titleRu,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "${stat.totalSets} подходов • ${(stat.totalVolumeKg).toInt()} кг",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                                 Text(
-                                    text = group.titleRu,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    text = "${(share * 100).toInt()}%",
+                                    text = "${(stat.share * 100).toInt()}%",
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (share > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = if (stat.share > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             Spacer(Modifier.height(4.dp))
                             LinearProgressIndicator(
-                                progress = { share },
+                                progress = { stat.share },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(10.dp)

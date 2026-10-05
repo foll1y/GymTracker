@@ -20,12 +20,14 @@ data class EditableSet(
     val reps: String = "",
     val isCompleted: Boolean = false,
     val previousWeight: Float? = null,
-    val previousReps: Int? = null
+    val previousReps: Int? = null,
+    val historicalMaxWeight: Float? = null
 )
 
 data class EditableExercise(
     val exercise: ExerciseEntity,
-    val sets: List<EditableSet> = emptyList()
+    val sets: List<EditableSet> = emptyList(),
+    val allTimeMaxWeight: Float = 0f
 )
 
 data class ActiveWorkoutUiState(
@@ -49,20 +51,34 @@ class WorkoutViewModel @Inject constructor(
     fun addExercise(exercise: ExerciseEntity) {
         viewModelScope.launch {
             val lastSets = workoutDao.getLastSetsForExercise(exercise.id)
+            val history = workoutDao.getExerciseHistory(exercise.id).first()
+            val maxHistoricalWeight = history.maxOfOrNull { it.weightKg } ?: 0f
+
             val initialSet = if (lastSets.isNotEmpty()) {
                 val last = lastSets.first()
                 EditableSet(
                     weight = if (last.weightKg > 0) last.weightKg.toString() else "",
                     reps = if (last.reps > 0) last.reps.toString() else "",
                     previousWeight = last.weightKg,
-                    previousReps = last.reps
+                    previousReps = last.reps,
+                    historicalMaxWeight = maxHistoricalWeight
                 )
             } else {
-                EditableSet(weight = "", reps = "")
+                EditableSet(
+                    weight = "",
+                    reps = "",
+                    historicalMaxWeight = maxHistoricalWeight
+                )
             }
 
             val currentList = _uiState.value.exercises.toMutableList()
-            currentList.add(EditableExercise(exercise = exercise, sets = listOf(initialSet)))
+            currentList.add(
+                EditableExercise(
+                    exercise = exercise,
+                    sets = listOf(initialSet),
+                    allTimeMaxWeight = maxHistoricalWeight
+                )
+            )
             _uiState.update { it.copy(exercises = currentList) }
         }
     }
@@ -109,10 +125,15 @@ class WorkoutViewModel @Inject constructor(
                         weight = lastSet.weight,
                         reps = lastSet.reps,
                         previousWeight = lastSet.previousWeight,
-                        previousReps = lastSet.previousReps
+                        previousReps = lastSet.previousReps,
+                        historicalMaxWeight = ex.allTimeMaxWeight
                     )
                 } else {
-                    EditableSet(weight = "", reps = "")
+                    EditableSet(
+                        weight = "",
+                        reps = "",
+                        historicalMaxWeight = ex.allTimeMaxWeight
+                    )
                 }
                 ex.copy(sets = ex.sets + newSet)
             } else ex
@@ -154,7 +175,6 @@ class WorkoutViewModel @Inject constructor(
             val startTimeEpoch = state.startTimeEpochMillis
             val durationMin = ((endTimeEpoch - startTimeEpoch) / 60000L).toInt().coerceAtLeast(1)
 
-            // Запрос данных с часов (OHealth через Health Connect)
             val healthData = healthConnectManager.fetchWorkoutHealthData(startTimeEpoch, endTimeEpoch)
 
             val workoutId = workoutDao.insertWorkout(
