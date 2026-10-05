@@ -29,7 +29,7 @@ data class ActiveWorkoutUiState(
     val workoutDate: Long = System.currentTimeMillis(),
     val durationSeconds: Long = 0,
     val note: String = "",
-    val exercises: List<EditableExercise> = emptyListOf(),
+    val exercises: List<EditableExercise> = emptyList(),
     val isTimerActive: Boolean = false,
     val restTimerRemainingSeconds: Int = 0,
     val isExerciseSearchOpen: Boolean = false
