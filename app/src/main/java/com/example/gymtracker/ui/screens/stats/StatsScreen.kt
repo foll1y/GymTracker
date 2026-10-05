@@ -2,6 +2,8 @@ package com.example.gymtracker.ui.screens.stats
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -11,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.gymtracker.data.model.MuscleGroup
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
     val state by viewModel.statsState.collectAsState()
@@ -21,15 +24,16 @@ fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                StatsPeriod.values().forEachIndexed { index, p ->
-                    SegmentedButton(
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(StatsPeriod.values()) { p ->
+                    FilterChip(
                         selected = p == period,
                         onClick = { viewModel.selectPeriod(p) },
-                        shape = SegmentedButtonDefaults.itemShape(index = index, count = StatsPeriod.values().size)
-                    ) {
-                        Text(p.title, maxLines = 1)
-                    }
+                        label = { Text(p.title) }
+                    )
                 }
             }
         }
