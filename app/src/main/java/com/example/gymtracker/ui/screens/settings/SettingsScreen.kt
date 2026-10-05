@@ -22,10 +22,5 @@ fun SettingsScreen() {
                 FilterChip(selected = !isKg, onClick = { isKg = false }, label = { Text("фунты") })
             }
         }
-
-        Spacer(Modifier.height(16.dp))
-        Button(onClick = { /* Экспорт JSON */ }, modifier = Modifier.fillMaxWidth()) {
-            Text("Экспорт базы данных (JSON)")
-        }
     }
 }

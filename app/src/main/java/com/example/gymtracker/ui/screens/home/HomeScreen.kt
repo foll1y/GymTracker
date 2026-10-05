@@ -27,7 +27,6 @@ fun HomeScreen(onStartWorkout: () -> Unit) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Expressive Hero Badge
         Box(
             modifier = Modifier
                 .size(100.dp)
@@ -63,7 +62,6 @@ fun HomeScreen(onStartWorkout: () -> Unit) {
 
         Spacer(Modifier.height(48.dp))
 
-        // Expressive Large Action Button
         Button(
             onClick = onStartWorkout,
             shape = RoundedCornerShape(24.dp),

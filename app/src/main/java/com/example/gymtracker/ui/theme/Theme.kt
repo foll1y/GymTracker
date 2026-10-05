@@ -1,11 +1,9 @@
 package com.example.gymtracker.ui.theme
 
 import android.app.Activity
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
@@ -34,7 +32,7 @@ private val ExpressiveDarkColorScheme = darkColorScheme(
 
 @Composable
 fun GymTrackerTheme(
-    darkTheme: Boolean = true, // По умолчанию современный тёмный спортивный стиль
+    darkTheme: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val colorScheme = ExpressiveDarkColorScheme
@@ -44,7 +42,6 @@ fun GymTrackerTheme(
         SideEffect {
             val window = (view.context as? Activity)?.window
             if (window != null) {
-                // Системные бары полностью прозрачные (Edge-to-Edge)
                 window.statusBarColor = android.graphics.Color.TRANSPARENT
                 window.navigationBarColor = android.graphics.Color.TRANSPARENT
 

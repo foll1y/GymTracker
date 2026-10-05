@@ -2,7 +2,6 @@ package com.example.gymtracker.ui.screens.workout
 
 import android.app.Activity
 import android.view.WindowManager
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -125,7 +124,6 @@ fun ActiveWorkoutScreen(
 
                         Spacer(Modifier.height(12.dp))
 
-                        // Заголовки таблицы подходов
                         Row(
                             Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,

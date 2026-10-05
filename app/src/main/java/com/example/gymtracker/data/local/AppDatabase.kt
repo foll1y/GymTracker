@@ -50,7 +50,6 @@ abstract class AppDatabase : RoomDatabase() {
 
     companion object {
         val INITIAL_EXERCISES = listOf(
-            // Грудь
             ExerciseEntity(name = "Жим штанги лёжа", muscleGroup = MuscleGroup.CHEST),
             ExerciseEntity(name = "Жим гантелей на наклонной скамье", muscleGroup = MuscleGroup.CHEST),
             ExerciseEntity(name = "Отжимания на брусьях (акцент на грудь)", muscleGroup = MuscleGroup.CHEST),
@@ -61,7 +60,6 @@ abstract class AppDatabase : RoomDatabase() {
             ExerciseEntity(name = "Пуловер с гантелью", muscleGroup = MuscleGroup.CHEST),
             ExerciseEntity(name = "Отжимания от пола", muscleGroup = MuscleGroup.CHEST),
 
-            // Спина
             ExerciseEntity(name = "Становая тяга классическая", muscleGroup = MuscleGroup.BACK),
             ExerciseEntity(name = "Подтягивания широким хватом", muscleGroup = MuscleGroup.BACK),
             ExerciseEntity(name = "Тяга штанги в наклоне", muscleGroup = MuscleGroup.BACK),
@@ -73,7 +71,6 @@ abstract class AppDatabase : RoomDatabase() {
             ExerciseEntity(name = "Шраги со штангой", muscleGroup = MuscleGroup.BACK),
             ExerciseEntity(name = "Пулловер на блоке стоя", muscleGroup = MuscleGroup.BACK),
 
-            // Ноги
             ExerciseEntity(name = "Приседания со штангой на плечах", muscleGroup = MuscleGroup.LEGS),
             ExerciseEntity(name = "Фронтальные приседания", muscleGroup = MuscleGroup.LEGS),
             ExerciseEntity(name = "Жим ногами в тренажёре", muscleGroup = MuscleGroup.LEGS),
@@ -86,7 +83,6 @@ abstract class AppDatabase : RoomDatabase() {
             ExerciseEntity(name = "Гакк-приседания", muscleGroup = MuscleGroup.LEGS),
             ExerciseEntity(name = "Ягодичный мост со штангой", muscleGroup = MuscleGroup.LEGS),
 
-            // Плечи
             ExerciseEntity(name = "Армейский жим стоя", muscleGroup = MuscleGroup.SHOULDERS),
             ExerciseEntity(name = "Жим гантелей сидя", muscleGroup = MuscleGroup.SHOULDERS),
             ExerciseEntity(name = "Махи гантелями через стороны", muscleGroup = MuscleGroup.SHOULDERS),
@@ -96,7 +92,6 @@ abstract class AppDatabase : RoomDatabase() {
             ExerciseEntity(name = "Махи в кроссовере назад", muscleGroup = MuscleGroup.SHOULDERS),
             ExerciseEntity(name = "Подъём гантелей перед собой", muscleGroup = MuscleGroup.SHOULDERS),
 
-            // Руки
             ExerciseEntity(name = "Подъём штанги на бицепс стоя", muscleGroup = MuscleGroup.ARMS),
             ExerciseEntity(name = "Молотковые сгибания с гантелями", muscleGroup = MuscleGroup.ARMS),
             ExerciseEntity(name = "Французский жим лёжа с EZ-грифом", muscleGroup = MuscleGroup.ARMS),
@@ -108,7 +103,6 @@ abstract class AppDatabase : RoomDatabase() {
             ExerciseEntity(name = "Сгибания рук с гантелями на наклонной скамье", muscleGroup = MuscleGroup.ARMS),
             ExerciseEntity(name = "Отжимания на брусьях (акцент на трицепс)", muscleGroup = MuscleGroup.ARMS),
 
-            // Пресс
             ExerciseEntity(name = "Скручивания на наклонной скамье", muscleGroup = MuscleGroup.ABS),
             ExerciseEntity(name = "Подъёмы ног в висе на турнике", muscleGroup = MuscleGroup.ABS),
             ExerciseEntity(name = "Планка статическая", muscleGroup = MuscleGroup.ABS),

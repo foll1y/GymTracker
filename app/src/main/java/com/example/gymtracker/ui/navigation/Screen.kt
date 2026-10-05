@@ -6,7 +6,4 @@ sealed class Screen(val route: String, val titleRu: String) {
     object History : Screen("history", "История")
     object Stats : Screen("stats", "Статистика")
     object Settings : Screen("settings", "Настройки")
-    object ExerciseDetail : Screen("exercise_detail/{exerciseId}", "Детали") {
-        fun createRoute(exerciseId: Long) = "exercise_detail/$exerciseId"
-    }
 }

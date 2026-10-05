@@ -1,6 +1,5 @@
 package com.example.gymtracker.ui.screens.stats
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -14,7 +13,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.gymtracker.data.model.MuscleGroup
 
@@ -30,7 +28,6 @@ fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Заголовок экрана
         item {
             Text(
                 text = "Статистика",
@@ -39,7 +36,6 @@ fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
             )
         }
 
-        // Фильтры периодов (Material 3 Expressive Chips)
         item {
             LazyRow(
                 modifier = Modifier.fillMaxWidth(),
@@ -61,7 +57,6 @@ fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
             }
         }
 
-        // Карточки ключевых метрик (Expressive Container High + 24.dp corners)
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 MetricCard("Тренировок", "${state.totalWorkouts}", Modifier.weight(1f))
@@ -74,7 +69,6 @@ fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
             }
         }
 
-        // Нагрузка по группам мышц (Expressive Карточка)
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
