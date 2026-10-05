@@ -1,3 +1,10 @@
 <resources>
-    <style name="Theme.GymTracker" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.GymTracker" parent="android:Theme.Material.NoActionBar">
+        <!-- Полная прозрачность и темный тон системных панелей Android (Edge-to-Edge) -->
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+    </style>
 </resources>

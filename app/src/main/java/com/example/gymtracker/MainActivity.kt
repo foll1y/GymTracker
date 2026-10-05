@@ -3,12 +3,14 @@ package com.example.gymtracker
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.*
 import com.example.gymtracker.ui.navigation.Screen
 import com.example.gymtracker.ui.screens.history.HistoryScreen
@@ -22,6 +24,7 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
             GymTrackerTheme {
@@ -32,30 +35,53 @@ class MainActivity : ComponentActivity() {
                 Scaffold(
                     bottomBar = {
                         if (currentRoute != Screen.Workout.route) {
-                            NavigationBar {
+                            NavigationBar(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                tonalElevation = 3.dp
+                            ) {
                                 NavigationBarItem(
                                     icon = { Icon(Icons.Default.Home, contentDescription = null) },
                                     label = { Text(Screen.Home.titleRu) },
                                     selected = currentRoute == Screen.Home.route,
-                                    onClick = { navController.navigate(Screen.Home.route) }
+                                    onClick = { navController.navigate(Screen.Home.route) },
+                                    colors = NavigationBarItemDefaults.colors(
+                                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                                        selectedTextColor = MaterialTheme.colorScheme.primary
+                                    )
                                 )
                                 NavigationBarItem(
                                     icon = { Icon(Icons.Default.History, contentDescription = null) },
                                     label = { Text(Screen.History.titleRu) },
                                     selected = currentRoute == Screen.History.route,
-                                    onClick = { navController.navigate(Screen.History.route) }
+                                    onClick = { navController.navigate(Screen.History.route) },
+                                    colors = NavigationBarItemDefaults.colors(
+                                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                                        selectedTextColor = MaterialTheme.colorScheme.primary
+                                    )
                                 )
                                 NavigationBarItem(
                                     icon = { Icon(Icons.Default.BarChart, contentDescription = null) },
                                     label = { Text(Screen.Stats.titleRu) },
                                     selected = currentRoute == Screen.Stats.route,
-                                    onClick = { navController.navigate(Screen.Stats.route) }
+                                    onClick = { navController.navigate(Screen.Stats.route) },
+                                    colors = NavigationBarItemDefaults.colors(
+                                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                                        selectedTextColor = MaterialTheme.colorScheme.primary
+                                    )
                                 )
                                 NavigationBarItem(
                                     icon = { Icon(Icons.Default.Settings, contentDescription = null) },
                                     label = { Text(Screen.Settings.titleRu) },
                                     selected = currentRoute == Screen.Settings.route,
-                                    onClick = { navController.navigate(Screen.Settings.route) }
+                                    onClick = { navController.navigate(Screen.Settings.route) },
+                                    colors = NavigationBarItemDefaults.colors(
+                                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                                        selectedTextColor = MaterialTheme.colorScheme.primary
+                                    )
                                 )
                             }
                         }

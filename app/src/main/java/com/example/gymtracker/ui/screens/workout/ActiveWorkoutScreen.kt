@@ -2,11 +2,13 @@ package com.example.gymtracker.ui.screens.workout
 
 import android.app.Activity
 import android.view.WindowManager
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -35,9 +37,7 @@ fun ActiveWorkoutScreen(
     var searchQuery by remember { mutableStateOf("") }
     var selectedGroupFilter by remember { mutableStateOf<MuscleGroup?>(null) }
     var newExerciseName by remember { mutableStateOf("") }
-    var newExerciseGroup by remember { mutableStateOf(MuscleGroup.CHEST) }
 
-    // Экран не гаснет во время активной тренировки
     DisposableEffect(Unit) {
         val window = (context as? Activity)?.window
         window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -50,14 +50,19 @@ fun ActiveWorkoutScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text("Запись тренировки", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Запись тренировки", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 },
                 actions = {
                     Button(
                         onClick = { viewModel.saveWorkout(onWorkoutFinished) },
-                        enabled = state.exercises.isNotEmpty()
+                        enabled = state.exercises.isNotEmpty(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
                     ) {
-                        Text("Завершить")
+                        Text("Завершить", fontWeight = FontWeight.Bold)
                     }
                 }
             )
@@ -67,18 +72,18 @@ fun ActiveWorkoutScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 12.dp)
+                .padding(horizontal = 14.dp)
         ) {
             if (state.exercises.isEmpty()) {
                 item {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 48.dp),
+                            .padding(vertical = 60.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "Упражнения ещё не добавлены.\nНажмите кнопку ниже, чтобы выбрать упражнение.",
+                            text = "Упражнения ещё не добавлены.\nНажмите кнопку ниже, чтобы начать.",
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -91,9 +96,13 @@ fun ActiveWorkoutScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 8.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    ),
                     elevation = CardDefaults.cardElevation(2.dp)
                 ) {
-                    Column(Modifier.padding(12.dp)) {
+                    Column(Modifier.padding(16.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -107,29 +116,31 @@ fun ActiveWorkoutScreen(
                                 )
                                 Text(
                                     text = exerciseItem.exercise.muscleGroup.titleRu,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.secondary
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold
                                 )
                             }
                         }
 
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(12.dp))
 
-                        // Заголовки таблицы
+                        // Заголовки таблицы подходов
                         Row(
                             Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Сет", Modifier.weight(0.6f), style = MaterialTheme.typography.labelMedium)
-                            Text("Прошлый", Modifier.weight(1.2f), style = MaterialTheme.typography.labelMedium)
-                            Text("Вес (кг)", Modifier.weight(1.5f), style = MaterialTheme.typography.labelMedium)
-                            Text("Повт.", Modifier.weight(1.3f), style = MaterialTheme.typography.labelMedium)
-                            Text("Готово", Modifier.weight(0.9f), style = MaterialTheme.typography.labelMedium)
-                            Text("", Modifier.weight(0.5f)) // для кнопки удаления
+                            Text("Сет", Modifier.weight(0.6f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Прошлый", Modifier.weight(1.2f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Вес (кг)", Modifier.weight(1.5f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Повт.", Modifier.weight(1.3f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Готово", Modifier.weight(0.9f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("", Modifier.weight(0.5f))
                         }
 
-                        // Список подходов
+                        Spacer(Modifier.height(4.dp))
+
                         exerciseItem.sets.forEachIndexed { setIndex, setEntry ->
                             Row(
                                 modifier = Modifier
@@ -138,12 +149,12 @@ fun ActiveWorkoutScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("${setIndex + 1}", Modifier.weight(0.6f), fontWeight = FontWeight.SemiBold)
+                                Text("${setIndex + 1}", Modifier.weight(0.6f), fontWeight = FontWeight.Bold)
 
                                 val prevText = if (setEntry.previousWeight != null && setEntry.previousReps != null) {
                                     "${setEntry.previousWeight}×${setEntry.previousReps}"
                                 } else "—"
-                                Text(prevText, Modifier.weight(1.2f), style = MaterialTheme.typography.bodySmall)
+                                Text(prevText, Modifier.weight(1.2f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                                 LargeNumberInput(
                                     value = setEntry.weight,
@@ -168,6 +179,9 @@ fun ActiveWorkoutScreen(
                                     onCheckedChange = { isChecked ->
                                         viewModel.completeSet(exIndex, setIndex, isChecked)
                                     },
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = MaterialTheme.colorScheme.primary
+                                    ),
                                     modifier = Modifier.weight(0.9f)
                                 )
 
@@ -184,29 +198,31 @@ fun ActiveWorkoutScreen(
                             }
                         }
 
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(8.dp))
 
                         OutlinedButton(
                             onClick = { viewModel.addSet(exIndex) },
+                            shape = RoundedCornerShape(16.dp),
                             modifier = Modifier.fillMaxWidth().height(48.dp)
                         ) {
                             Icon(Icons.Default.Add, contentDescription = null)
-                            Spacer(Modifier.width(4.dp))
-                            Text("+ Подход")
+                            Spacer(Modifier.width(6.dp))
+                            Text("+ Подход", fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
             }
 
             item {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(14.dp))
                 Button(
                     onClick = { showExerciseDialog = true },
-                    modifier = Modifier.fillMaxWidth().height(54.dp)
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.fillMaxWidth().height(58.dp)
                 ) {
                     Icon(Icons.Default.FitnessCenter, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Добавить упражнение", fontSize = 16.sp)
+                    Text("Добавить упражнение", fontSize = 17.sp, fontWeight = FontWeight.Bold)
                 }
                 Spacer(Modifier.height(40.dp))
             }
@@ -216,7 +232,9 @@ fun ActiveWorkoutScreen(
     if (showExerciseDialog) {
         AlertDialog(
             onDismissRequest = { showExerciseDialog = false },
-            title = { Text("Выбор упражнения") },
+            shape = RoundedCornerShape(28.dp),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            title = { Text("Выбор упражнения", fontWeight = FontWeight.Bold) },
             text = {
                 Column(Modifier.fillMaxWidth()) {
                     OutlinedTextField(
@@ -224,13 +242,13 @@ fun ActiveWorkoutScreen(
                         onValueChange = { searchQuery = it },
                         label = { Text("Поиск (название или группа мышц)") },
                         placeholder = { Text("Например: спина, жим...") },
+                        shape = RoundedCornerShape(16.dp),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(10.dp))
 
-                    // Фильтр по группам мышц (чипы)
                     LazyRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -239,6 +257,7 @@ fun ActiveWorkoutScreen(
                             FilterChip(
                                 selected = selectedGroupFilter == null,
                                 onClick = { selectedGroupFilter = null },
+                                shape = RoundedCornerShape(14.dp),
                                 label = { Text("Все") }
                             )
                         }
@@ -248,12 +267,13 @@ fun ActiveWorkoutScreen(
                                 onClick = {
                                     selectedGroupFilter = if (selectedGroupFilter == group) null else group
                                 },
+                                shape = RoundedCornerShape(14.dp),
                                 label = { Text(group.titleRu) }
                             )
                         }
                     }
 
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(10.dp))
 
                     val cleanQuery = searchQuery.trim().lowercase()
                     val filtered = allExercises.filter { ex ->
@@ -268,15 +288,21 @@ fun ActiveWorkoutScreen(
                         items(filtered.size) { index ->
                             val ex = filtered[index]
                             ListItem(
-                                headlineContent = { Text(ex.name, fontWeight = FontWeight.Medium) },
+                                colors = ListItemDefaults.colors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                                ),
+                                headlineContent = { Text(ex.name, fontWeight = FontWeight.SemiBold) },
                                 supportingContent = { Text(ex.muscleGroup.titleRu, color = MaterialTheme.colorScheme.primary) },
                                 modifier = Modifier.fillMaxWidth(),
                                 trailingContent = {
-                                    IconButton(onClick = {
-                                        viewModel.addExercise(ex)
-                                        showExerciseDialog = false
-                                        searchQuery = ""
-                                    }) {
+                                    FilledIconButton(
+                                        onClick = {
+                                            viewModel.addExercise(ex)
+                                            showExerciseDialog = false
+                                            searchQuery = ""
+                                        },
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
                                         Icon(Icons.Default.Add, contentDescription = "Выбрать")
                                     }
                                 }
@@ -284,12 +310,14 @@ fun ActiveWorkoutScreen(
                         }
                     }
 
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(10.dp))
                     Text("Создать своё упражнение:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
                     OutlinedTextField(
                         value = newExerciseName,
                         onValueChange = { newExerciseName = it },
                         placeholder = { Text("Название упражнения") },
+                        shape = RoundedCornerShape(16.dp),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -297,12 +325,15 @@ fun ActiveWorkoutScreen(
             },
             confirmButton = {
                 if (newExerciseName.isNotBlank()) {
-                    Button(onClick = {
-                        viewModel.addCustomExercise(newExerciseName, selectedGroupFilter ?: MuscleGroup.CHEST)
-                        newExerciseName = ""
-                        showExerciseDialog = false
-                        searchQuery = ""
-                    }) {
+                    Button(
+                        onClick = {
+                            viewModel.addCustomExercise(newExerciseName, selectedGroupFilter ?: MuscleGroup.CHEST)
+                            newExerciseName = ""
+                            showExerciseDialog = false
+                            searchQuery = ""
+                        },
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
                         Text("Создать и добавить")
                     }
                 }
