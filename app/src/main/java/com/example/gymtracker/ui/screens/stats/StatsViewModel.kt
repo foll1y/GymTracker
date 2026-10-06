@@ -98,12 +98,19 @@ class StatsViewModel @Inject constructor(
                 }
 
                 ex.sets.forEach { s ->
-                    if (s.isCompleted && s.weightKg > 0f && s.reps > 0) {
+                    // Подход считается выполненным, если стоит флаг isCompleted,
+                    // ЛИБО если у него заполнены повторения (reps > 0) или вес (weightKg > 0)
+                    val isDone = s.isCompleted || s.reps > 0 || s.weightKg > 0f
+                    if (isDone && (s.reps > 0 || s.weightKg > 0f)) {
                         totalSets++
                         muscleSetsCount[group] = (muscleSetsCount[group] ?: 0) + 1
                         exAgg.setsCount++
 
-                        val oneRm = Formulas.calculate1RM(s.weightKg, s.reps)
+                        val oneRm = if (s.weightKg > 0f && s.reps > 0) {
+                            Formulas.calculate1RM(s.weightKg, s.reps)
+                        } else if (s.weightKg > 0f) {
+                            s.weightKg
+                        } else 0f
 
                         if (oneRm > exAgg.max1RM || (oneRm == exAgg.max1RM && s.weightKg > exAgg.maxWeight)) {
                             exAgg.max1RM = oneRm
@@ -154,7 +161,7 @@ class StatsViewModel @Inject constructor(
                 share = share,
                 exercises = groupExercises
             )
-        }
+        }.sortedWith(compareByDescending<MuscleGroupStat> { it.totalSets }.thenBy { it.group.ordinal })
 
         val days = workouts.map { TimeUnit.MILLISECONDS.toDays(it.workout.dateEpochMillis) }
         val streak = Formulas.calculateStreak(days)

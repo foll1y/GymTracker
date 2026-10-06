@@ -59,6 +59,7 @@ class WorkoutViewModel @Inject constructor(
                 EditableSet(
                     weight = if (last.weightKg > 0) last.weightKg.toString() else "",
                     reps = if (last.reps > 0) last.reps.toString() else "",
+                    isCompleted = last.reps > 0 || last.weightKg > 0f,
                     previousWeight = last.weightKg,
                     previousReps = last.reps,
                     historicalMaxWeight = maxHistoricalWeight
@@ -96,7 +97,12 @@ class WorkoutViewModel @Inject constructor(
         val updatedExercises = _uiState.value.exercises.mapIndexed { exIdx, ex ->
             if (exIdx == exerciseIndex) {
                 val updatedSets = ex.sets.mapIndexed { sIdx, s ->
-                    if (sIdx == setIndex) s.copy(weight = newWeight) else s
+                    if (sIdx == setIndex) {
+                        val w = newWeight.toFloatOrNull() ?: 0f
+                        val r = s.reps.toIntOrNull() ?: 0
+                        val autoDone = s.isCompleted || (w > 0f && r > 0)
+                        s.copy(weight = newWeight, isCompleted = autoDone)
+                    } else s
                 }
                 ex.copy(sets = updatedSets)
             } else ex
@@ -108,7 +114,12 @@ class WorkoutViewModel @Inject constructor(
         val updatedExercises = _uiState.value.exercises.mapIndexed { exIdx, ex ->
             if (exIdx == exerciseIndex) {
                 val updatedSets = ex.sets.mapIndexed { sIdx, s ->
-                    if (sIdx == setIndex) s.copy(reps = newReps) else s
+                    if (sIdx == setIndex) {
+                        val w = s.weight.toFloatOrNull() ?: 0f
+                        val r = newReps.toIntOrNull() ?: 0
+                        val autoDone = s.isCompleted || (w > 0f && r > 0)
+                        s.copy(reps = newReps, isCompleted = autoDone)
+                    } else s
                 }
                 ex.copy(sets = updatedSets)
             } else ex
@@ -124,6 +135,7 @@ class WorkoutViewModel @Inject constructor(
                     EditableSet(
                         weight = lastSet.weight,
                         reps = lastSet.reps,
+                        isCompleted = lastSet.weight.isNotBlank() && lastSet.reps.isNotBlank(),
                         previousWeight = lastSet.previousWeight,
                         previousReps = lastSet.previousReps,
                         historicalMaxWeight = ex.allTimeMaxWeight
@@ -196,12 +208,16 @@ class WorkoutViewModel @Inject constructor(
                 ).first()
 
                 val setsToInsert = exItem.sets.mapIndexed { setIndex, s ->
+                    val w = s.weight.toFloatOrNull() ?: 0f
+                    val r = s.reps.toIntOrNull() ?: 0
+                    // Сет считается выполненным, если стоит галочка ИЛИ указаны вес/повторения
+                    val isDone = s.isCompleted || (w > 0f && r > 0) || (r > 0)
                     SetEntryEntity(
                         workoutExerciseId = weId,
-                        weightKg = s.weight.toFloatOrNull() ?: 0f,
-                        reps = s.reps.toIntOrNull() ?: 0,
+                        weightKg = w,
+                        reps = r,
                         orderIndex = setIndex,
-                        isCompleted = s.isCompleted
+                        isCompleted = isDone
                     )
                 }
                 workoutDao.insertSets(setsToInsert)

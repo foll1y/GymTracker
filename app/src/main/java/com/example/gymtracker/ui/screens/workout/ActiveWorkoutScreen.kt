@@ -74,7 +74,9 @@ fun ActiveWorkoutScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 14.dp)
+                .imePadding()
+                .padding(horizontal = 14.dp),
+            contentPadding = PaddingValues(bottom = 100.dp)
         ) {
             if (state.exercises.isEmpty()) {
                 item {

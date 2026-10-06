@@ -121,7 +121,8 @@ fun WorkoutHistoryCard(
 
     val totalVolumeKg = remember(workoutDetails) {
         workoutDetails.exercises.sumOf { ex ->
-            ex.sets.filter { it.isCompleted }.sumOf { (it.weightKg * it.reps).toDouble() }
+            ex.sets.filter { it.isCompleted || it.reps > 0 || it.weightKg > 0f }
+                .sumOf { (it.weightKg * it.reps).toDouble() }
         }.toInt()
     }
 

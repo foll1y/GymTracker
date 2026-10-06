@@ -53,7 +53,7 @@ interface WorkoutDao {
         FROM set_entries s
         JOIN workout_exercises we ON s.workoutExerciseId = we.id
         JOIN workouts w ON we.workoutId = w.id
-        WHERE we.exerciseId = :exerciseId AND s.isCompleted = 1
+        WHERE we.exerciseId = :exerciseId AND (s.isCompleted = 1 OR s.reps > 0 OR s.weightKg > 0)
         ORDER BY w.dateEpochMillis ASC
     """)
     fun getExerciseHistory(exerciseId: Long): Flow<List<RawHistoryEntry>>
