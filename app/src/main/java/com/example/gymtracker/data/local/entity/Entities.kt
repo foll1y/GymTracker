@@ -13,7 +13,8 @@ data class ExerciseEntity(
     val exerciseType: ExerciseType = ExerciseType.WEIGHT_AND_REPS,
     val setupTip: String = "",
     val executionTip: String = "",
-    val mistakeTip: String = ""
+    val mistakeTip: String = "",
+    val imagePath: String = ""
 )
 
 @Entity(tableName = "workouts")

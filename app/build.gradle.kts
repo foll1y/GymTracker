@@ -64,6 +64,9 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.navigation:navigation-compose:2.7.7")
 
+    // Image Loading (Coil for free-exercise-db 2-frame exercise visual imagery)
+    implementation("io.coil-kt:coil-compose:2.6.0")
+
     // AndroidX & Lifecycle
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.2")

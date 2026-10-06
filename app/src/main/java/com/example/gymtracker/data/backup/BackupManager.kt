@@ -38,6 +38,7 @@ class BackupManager @Inject constructor(
                 obj.put("setupTip", ex.setupTip)
                 obj.put("executionTip", ex.executionTip)
                 obj.put("mistakeTip", ex.mistakeTip)
+                obj.put("imagePath", ex.imagePath)
                 exercisesJson.put(obj)
             }
             root.put("exercises", exercisesJson)
@@ -142,6 +143,7 @@ class BackupManager @Inject constructor(
                 val exTypeStr = exObj.optString("exerciseType", "WEIGHT_AND_REPS")
                 val exType = try { enumValueOf<ExerciseType>(exTypeStr) } catch (e: Exception) { ExerciseType.WEIGHT_AND_REPS }
                 val group = try { enumValueOf<MuscleGroup>(muscleGroupName) } catch (e: Exception) { MuscleGroup.CHEST }
+                val imgPath = exObj.optString("imagePath", "")
 
                 if (!existingExercises.containsKey(name.lowercase())) {
                     val id = database.exerciseDao().insertExercise(
@@ -152,14 +154,14 @@ class BackupManager @Inject constructor(
                             exerciseType = exType,
                             setupTip = exObj.optString("setupTip", ""),
                             executionTip = exObj.optString("executionTip", ""),
-                            mistakeTip = exObj.optString("mistakeTip", "")
+                            mistakeTip = exObj.optString("mistakeTip", ""),
+                            imagePath = imgPath
                         )
                     )
-                    existingExercises[name.lowercase()] = ExerciseEntity(id = id, name = name, muscleGroup = group, isCustom = isCustom, exerciseType = exType)
+                    existingExercises[name.lowercase()] = ExerciseEntity(id = id, name = name, muscleGroup = group, isCustom = isCustom, exerciseType = exType, imagePath = imgPath)
                 }
             }
 
-            // Восстановление программ
             val programsJson = root.optJSONArray("programs") ?: JSONArray()
             for (p in 0 until programsJson.length()) {
                 val pObj = programsJson.getJSONObject(p)

@@ -43,6 +43,8 @@ fun ProgramsScreen(
     var newProgramTitle by remember { mutableStateOf("") }
     var newProgramDesc by remember { mutableStateOf("") }
 
+    var showDeleteProgramDialog by remember { mutableStateOf(false) }
+
     var showAddDayDialog by remember { mutableStateOf(false) }
     var newDayName by remember { mutableStateOf("") }
 
@@ -83,7 +85,7 @@ fun ProgramsScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Выбор программы (вкладки / чипы)
+            // Вкладки доступных программ
             if (programs.isNotEmpty()) {
                 item {
                     LazyRow(
@@ -128,7 +130,7 @@ fun ProgramsScreen(
                             )
                             Spacer(Modifier.height(8.dp))
                             Text(
-                                text = "Создайте свой первый сплит или используйте готовый шаблон для регулярных тренировок.",
+                                text = "Создайте свой первый тренировочный сплит или используйте готовые шаблоны.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -145,7 +147,7 @@ fun ProgramsScreen(
                     }
                 }
             } else {
-                // Карточка описания текущей программы
+                // Карточка выбранной программы
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -174,26 +176,39 @@ fun ProgramsScreen(
                                     }
                                 }
 
-                                if (currentProgram.program.isActive) {
-                                    Surface(
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = MaterialTheme.colorScheme.primaryContainer
-                                    ) {
-                                        Text(
-                                            text = "Активная",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                        )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (currentProgram.program.isActive) {
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = MaterialTheme.colorScheme.primaryContainer
+                                        ) {
+                                            Text(
+                                                text = "Активная",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                    } else {
+                                        OutlinedButton(
+                                            onClick = { viewModel.setActiveProgram(currentProgram.program.id) },
+                                            shape = RoundedCornerShape(12.dp),
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                        ) {
+                                            Text("Выбрать", style = MaterialTheme.typography.labelSmall)
+                                        }
                                     }
-                                } else {
-                                    OutlinedButton(
-                                        onClick = { viewModel.setActiveProgram(currentProgram.program.id) },
-                                        shape = RoundedCornerShape(12.dp),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                                    ) {
-                                        Text("Выбрать", style = MaterialTheme.typography.labelSmall)
+
+                                    Spacer(Modifier.width(4.dp))
+
+                                    // Кнопка удаления программы
+                                    IconButton(onClick = { showDeleteProgramDialog = true }) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Удалить программу",
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
                                     }
                                 }
                             }
@@ -465,7 +480,36 @@ fun ProgramsScreen(
         )
     }
 
-    // 2. Диалог добавления дня в программу
+    // 2. Диалог подтверждения удаления программы
+    if (showDeleteProgramDialog && currentProgram != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteProgramDialog = false },
+            shape = RoundedCornerShape(24.dp),
+            title = { Text("Удалить программу?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("Вы уверены, что хотите удалить программу «${currentProgram.program.title}» и все входящие в неё тренировочные дни?")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteProgram(currentProgram.program)
+                        selectedProgramIndex = 0
+                        selectedDayIndex = 0
+                        showDeleteProgramDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Удалить", color = MaterialTheme.colorScheme.onError)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteProgramDialog = false }) { Text("Отмена") }
+            }
+        )
+    }
+
+    // 3. Диалог добавления дня в программу
     if (showAddDayDialog && currentProgram != null) {
         AlertDialog(
             onDismissRequest = { showAddDayDialog = false },
@@ -501,7 +545,7 @@ fun ProgramsScreen(
         )
     }
 
-    // 3. Диалог выбора и настройки упражнения в план
+    // 4. Диалог выбора и настройки упражнения в план
     if (showAddExerciseDialog && currentDay != null) {
         AlertDialog(
             onDismissRequest = {
@@ -674,7 +718,7 @@ fun ProgramsScreen(
         )
     }
 
-    // 4. Шторка подсказки по технике (BottomSheet)
+    // 5. Шторка подсказки по технике (BottomSheet)
     if (selectedExerciseForTechnique != null) {
         TechniqueBottomSheet(
             exercise = selectedExerciseForTechnique,
