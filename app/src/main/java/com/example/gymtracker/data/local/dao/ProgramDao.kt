@@ -20,6 +20,7 @@ interface ProgramDao {
     @Query("SELECT * FROM program_days WHERE id = :dayId")
     suspend fun getDayWithExercisesById(dayId: Long): ProgramDayWithExercises?
 
+    @Transaction
     @Query("SELECT * FROM programs WHERE isActive = 1 LIMIT 1")
     fun getActiveProgram(): Flow<ProgramWithDays?>
 

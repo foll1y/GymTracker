@@ -331,12 +331,4 @@ fun MetricCard(
             }
         }
     }
-
-    if (selectedExerciseForProgress != null) {
-        ExerciseProgressBottomSheet(
-            exercise = selectedExerciseForProgress,
-            historyEntries = progressHistory,
-            onDismiss = { selectedExerciseForProgress = null }
-        )
-    }
 }
