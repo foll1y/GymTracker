@@ -18,17 +18,31 @@ enum class StatsPeriod(val title: String) {
     ALL("Всё")
 }
 
+data class ExerciseStat(
+    val exerciseId: Long,
+    val exerciseName: String,
+    val maxWeightKg: Float,
+    val repsAtMaxWeight: Int,
+    val oneRepMaxKg: Float,
+    val totalSets: Int
+)
+
 data class MuscleGroupStat(
     val group: MuscleGroup,
-    val totalVolumeKg: Double,
+    val maxOneRepMaxKg: Float,
+    val maxWeightKg: Float,
+    val bestExerciseName: String,
     val totalSets: Int,
-    val share: Float
+    val share: Float,
+    val exercises: List<ExerciseStat> = emptyList()
 )
 
 data class StatsUiState(
     val selectedPeriod: StatsPeriod = StatsPeriod.MONTH,
     val totalWorkouts: Int = 0,
-    val totalVolumeKg: Double = 0.0,
+    val maxWorkingWeightKg: Float = 0f,
+    val maxOneRepMaxKg: Float = 0f,
+    val maxOneRepMaxExercise: String = "",
     val totalSets: Int = 0,
     val averageDurationMinutes: Int = 0,
     val currentStreak: Int = 0,
@@ -57,32 +71,89 @@ class StatsViewModel @Inject constructor(
             }
         }
 
-        var totalVol = 0.0
         var totalSets = 0
-        val muscleSetCount = mutableMapOf<MuscleGroup, Int>()
-        val muscleVolumeMap = mutableMapOf<MuscleGroup, Double>()
+        var overallMaxWeight = 0f
+        var overallMax1RM = 0f
+        var overallBestExercise = ""
+
+        val muscleSetsCount = mutableMapOf<MuscleGroup, Int>()
+
+        class ExerciseAgg(
+            val id: Long,
+            val name: String,
+            val group: MuscleGroup,
+            var maxWeight: Float = 0f,
+            var repsAtMax: Int = 0,
+            var max1RM: Float = 0f,
+            var setsCount: Int = 0
+        )
+
+        val exerciseMap = mutableMapOf<Long, ExerciseAgg>()
 
         filtered.forEach { w ->
             w.exercises.forEach { ex ->
                 val group = ex.exercise.muscleGroup
+                val exAgg = exerciseMap.getOrPut(ex.exercise.id) {
+                    ExerciseAgg(ex.exercise.id, ex.exercise.name, group)
+                }
+
                 ex.sets.forEach { s ->
-                    if (s.isCompleted) {
-                        val vol = (s.weightKg * s.reps).toDouble()
-                        totalVol += vol
+                    if (s.isCompleted && s.weightKg > 0f && s.reps > 0) {
                         totalSets++
-                        muscleSetCount[group] = (muscleSetCount[group] ?: 0) + 1
-                        muscleVolumeMap[group] = (muscleVolumeMap[group] ?: 0.0) + vol
+                        muscleSetsCount[group] = (muscleSetsCount[group] ?: 0) + 1
+                        exAgg.setsCount++
+
+                        val oneRm = Formulas.calculate1RM(s.weightKg, s.reps)
+
+                        if (oneRm > exAgg.max1RM || (oneRm == exAgg.max1RM && s.weightKg > exAgg.maxWeight)) {
+                            exAgg.max1RM = oneRm
+                            exAgg.maxWeight = s.weightKg
+                            exAgg.repsAtMax = s.reps
+                        }
+
+                        if (s.weightKg > overallMaxWeight) {
+                            overallMaxWeight = s.weightKg
+                        }
+                        if (oneRm > overallMax1RM) {
+                            overallMax1RM = oneRm
+                            overallBestExercise = ex.exercise.name
+                        }
                     }
                 }
             }
         }
 
-        val totalMuscleSets = muscleSetCount.values.sum().toFloat().coerceAtLeast(1f)
+        val totalMuscleSets = muscleSetsCount.values.sum().toFloat().coerceAtLeast(1f)
         val muscleStatsList = MuscleGroup.values().map { group ->
-            val sets = muscleSetCount[group] ?: 0
-            val vol = muscleVolumeMap[group] ?: 0.0
+            val groupExercises = exerciseMap.values
+                .filter { it.group == group && it.setsCount > 0 }
+                .map {
+                    ExerciseStat(
+                        exerciseId = it.id,
+                        exerciseName = it.name,
+                        maxWeightKg = it.maxWeight,
+                        repsAtMaxWeight = it.repsAtMax,
+                        oneRepMaxKg = it.max1RM,
+                        totalSets = it.setsCount
+                    )
+                }
+                .sortedByDescending { it.oneRepMaxKg }
+
+            val sets = muscleSetsCount[group] ?: 0
+            val max1RM = groupExercises.firstOrNull()?.oneRepMaxKg ?: 0f
+            val maxWeight = groupExercises.maxOfOrNull { it.maxWeightKg } ?: 0f
+            val bestExName = groupExercises.firstOrNull()?.exerciseName ?: ""
             val share = sets / totalMuscleSets
-            MuscleGroupStat(group, vol, sets, share)
+
+            MuscleGroupStat(
+                group = group,
+                maxOneRepMaxKg = max1RM,
+                maxWeightKg = maxWeight,
+                bestExerciseName = bestExName,
+                totalSets = sets,
+                share = share,
+                exercises = groupExercises
+            )
         }
 
         val days = workouts.map { TimeUnit.MILLISECONDS.toDays(it.workout.dateEpochMillis) }
@@ -95,7 +166,9 @@ class StatsViewModel @Inject constructor(
         StatsUiState(
             selectedPeriod = period,
             totalWorkouts = filtered.size,
-            totalVolumeKg = totalVol,
+            maxWorkingWeightKg = overallMaxWeight,
+            maxOneRepMaxKg = overallMax1RM,
+            maxOneRepMaxExercise = overallBestExercise,
             totalSets = totalSets,
             averageDurationMinutes = if (filtered.isNotEmpty()) filtered.sumOf { it.workout.durationMinutes } / filtered.size else 0,
             currentStreak = streak,
