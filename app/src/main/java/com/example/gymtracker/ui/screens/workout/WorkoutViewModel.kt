@@ -9,12 +9,14 @@ import com.example.gymtracker.data.local.dao.WorkoutDao
 import com.example.gymtracker.data.local.entity.*
 import com.example.gymtracker.data.model.ExerciseType
 import com.example.gymtracker.data.model.MuscleGroup
+import com.example.gymtracker.data.model.SetType
 import com.example.gymtracker.data.online.OnlineExerciseCatalog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 
 data class EditableSet(
@@ -22,6 +24,7 @@ data class EditableSet(
     val weight: String = "",
     val reps: String = "",
     val isCompleted: Boolean = false,
+    val setType: SetType = SetType.NORMAL,
     val previousWeight: Float? = null,
     val previousReps: Int? = null,
     val historicalMaxWeight: Float? = null
@@ -31,14 +34,16 @@ data class EditableExercise(
     val exercise: ExerciseEntity,
     val sets: List<EditableSet> = emptyList(),
     val allTimeMaxWeight: Float = 0f,
-    val isWeighted: Boolean = false
+    val isWeighted: Boolean = false,
+    val supersetLabel: String? = null
 )
 
 data class ActiveWorkoutUiState(
     val startTimeEpochMillis: Long = System.currentTimeMillis(),
     val note: String = "",
     val exercises: List<EditableExercise> = emptyList(),
-    val programDayTitle: String? = null
+    val programDayTitle: String? = null,
+    val isSaving: Boolean = false
 )
 
 @HiltViewModel
@@ -52,6 +57,7 @@ class WorkoutViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(ActiveWorkoutUiState())
     val uiState: StateFlow<ActiveWorkoutUiState> = _uiState.asStateFlow()
+    private val isSavingInProgress = AtomicBoolean(false)
 
     val allExercises: Flow<List<ExerciseEntity>> = exerciseDao.getAllExercises()
 
@@ -116,7 +122,8 @@ class WorkoutViewModel @Inject constructor(
                         exercise = ex,
                         sets = setsList,
                         allTimeMaxWeight = maxHistoricalWeight,
-                        isWeighted = isWeightedDefault
+                        isWeighted = isWeightedDefault,
+                        supersetLabel = planEx.planExercise.supersetLabel
                     )
                 )
             }
@@ -165,6 +172,43 @@ class WorkoutViewModel @Inject constructor(
             )
             _uiState.update { it.copy(exercises = currentList) }
         }
+    }
+
+    fun updateSetType(exerciseIndex: Int, setIndex: Int, setType: SetType) {
+        val updated = _uiState.value.exercises.mapIndexed { exIdx, ex ->
+            if (exIdx == exerciseIndex) {
+                val updatedSets = ex.sets.mapIndexed { sIdx, s ->
+                    if (sIdx == setIndex) s.copy(setType = setType) else s
+                }
+                ex.copy(sets = updatedSets)
+            } else ex
+        }
+        _uiState.update { it.copy(exercises = updated) }
+    }
+
+    fun setSuperset(exerciseIndex1: Int, exerciseIndex2: Int) {
+        val exercises = _uiState.value.exercises
+        if (exerciseIndex1 !in exercises.indices || exerciseIndex2 !in exercises.indices || exerciseIndex1 == exerciseIndex2) return
+        val existingLabels = exercises.mapNotNull { it.supersetLabel }.distinct()
+        val nextLabel = ('A'..'Z').firstOrNull { it.toString() !in existingLabels }?.toString() ?: "A"
+        val updated = exercises.mapIndexed { idx, ex ->
+            if (idx == exerciseIndex1 || idx == exerciseIndex2) {
+                ex.copy(supersetLabel = nextLabel)
+            } else ex
+        }
+        _uiState.update { it.copy(exercises = updated) }
+    }
+
+    fun removeSuperset(exerciseIndex: Int) {
+        val exercises = _uiState.value.exercises
+        if (exerciseIndex !in exercises.indices) return
+        val targetLabel = exercises[exerciseIndex].supersetLabel ?: return
+        val updated = exercises.map { ex ->
+            if (ex.supersetLabel == targetLabel) {
+                ex.copy(supersetLabel = null)
+            } else ex
+        }
+        _uiState.update { it.copy(exercises = updated) }
     }
 
     fun toggleWeighted(exerciseIndex: Int) {

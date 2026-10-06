@@ -106,6 +106,43 @@ class ProgramsViewModel @Inject constructor(
         }
     }
 
+    fun reorderExercisesInDay(dayId: Long, fromIndex: Int, toIndex: Int) {
+        viewModelScope.launch {
+            val day = programDao.getDayWithExercisesById(dayId) ?: return@launch
+            val list = day.exercises.map { it.planExercise }.sortedBy { it.orderIndex }.toMutableList()
+            if (fromIndex in list.indices && toIndex in list.indices && fromIndex != toIndex) {
+                val moved = list.removeAt(fromIndex)
+                list.add(toIndex, moved)
+                val updated = list.mapIndexed { idx, it -> it.copy(orderIndex = idx) }
+                programDao.updateProgramDayExercises(updated)
+            }
+        }
+    }
+
+    fun setSupersetForDayExercises(dayId: Long, planExerciseId1: Long, planExerciseId2: Long) {
+        viewModelScope.launch {
+            val day = programDao.getDayWithExercisesById(dayId) ?: return@launch
+            val existingLabels = day.exercises.mapNotNull { it.planExercise.supersetLabel }.distinct()
+            val nextLabel = ('A'..'Z').firstOrNull { it.toString() !in existingLabels }?.toString() ?: "A"
+
+            day.exercises.forEach { pe ->
+                if (pe.planExercise.id == planExerciseId1 || pe.planExercise.id == planExerciseId2) {
+                    programDao.updateProgramDayExercise(pe.planExercise.copy(supersetLabel = nextLabel))
+                }
+            }
+        }
+    }
+
+    fun removeSupersetForDayExercise(planExercise: ProgramDayExerciseEntity) {
+        viewModelScope.launch {
+            val day = programDao.getDayWithExercisesById(planExercise.dayId) ?: return@launch
+            val label = planExercise.supersetLabel ?: return@launch
+            day.exercises.filter { it.planExercise.supersetLabel == label }.forEach {
+                programDao.updateProgramDayExercise(it.planExercise.copy(supersetLabel = null))
+            }
+        }
+    }
+
     suspend fun createCustomExercise(name: String, group: MuscleGroup): Long {
         return exerciseDao.insertExercise(
             ExerciseEntity(name = name.trim(), muscleGroup = group, isCustom = true)

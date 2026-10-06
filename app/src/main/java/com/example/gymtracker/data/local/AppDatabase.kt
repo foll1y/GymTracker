@@ -6,6 +6,7 @@ import com.example.gymtracker.data.local.dao.*
 import com.example.gymtracker.data.local.entity.*
 import com.example.gymtracker.data.model.ExerciseType
 import com.example.gymtracker.data.model.MuscleGroup
+import com.example.gymtracker.data.model.SetType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -23,6 +24,12 @@ class Converters {
 
     @TypeConverter
     fun toExerciseType(value: String): ExerciseType = try { enumValueOf<ExerciseType>(value) } catch(e: Exception) { ExerciseType.WEIGHT_AND_REPS }
+
+    @TypeConverter
+    fun fromSetType(value: SetType): String = value.name
+
+    @TypeConverter
+    fun toSetType(value: String): SetType = try { enumValueOf<SetType>(value) } catch(e: Exception) { SetType.NORMAL }
 }
 
 @Database(
@@ -37,7 +44,7 @@ class Converters {
         TemplateEntity::class,
         TemplateExerciseEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

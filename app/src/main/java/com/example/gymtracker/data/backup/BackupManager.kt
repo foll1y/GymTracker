@@ -6,6 +6,7 @@ import com.example.gymtracker.data.local.AppDatabase
 import com.example.gymtracker.data.local.entity.*
 import com.example.gymtracker.data.model.ExerciseType
 import com.example.gymtracker.data.model.MuscleGroup
+import com.example.gymtracker.data.model.SetType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -67,6 +68,9 @@ class BackupManager @Inject constructor(
                         if (pe.planExercise.targetWeightKg != null) {
                             peObj.put("targetWeightKg", pe.planExercise.targetWeightKg.toDouble())
                         }
+                        if (pe.planExercise.supersetLabel != null) {
+                            peObj.put("supersetLabel", pe.planExercise.supersetLabel)
+                        }
                         exListJson.put(peObj)
                     }
                     dObj.put("exercises", exListJson)
@@ -97,6 +101,9 @@ class BackupManager @Inject constructor(
                     exItem.put("exerciseName", exDetails.exercise.name)
                     exItem.put("muscleGroup", exDetails.exercise.muscleGroup.name)
                     exItem.put("orderIndex", exDetails.workoutExercise.orderIndex)
+                    if (exDetails.workoutExercise.supersetLabel != null) {
+                        exItem.put("supersetLabel", exDetails.workoutExercise.supersetLabel)
+                    }
 
                     val setsJson = JSONArray()
                     exDetails.sets.forEach { s ->
@@ -105,6 +112,7 @@ class BackupManager @Inject constructor(
                         sObj.put("reps", s.reps)
                         sObj.put("orderIndex", s.orderIndex)
                         sObj.put("isCompleted", s.isCompleted)
+                        sObj.put("setType", s.setType.name)
                         setsJson.put(sObj)
                     }
                     exItem.put("sets", setsJson)
@@ -195,7 +203,8 @@ class BackupManager @Inject constructor(
                                     orderIndex = peObj.optInt("orderIndex", e),
                                     targetSets = peObj.optInt("targetSets", 3),
                                     targetReps = peObj.optString("targetReps", "8-12"),
-                                    targetWeightKg = if (peObj.has("targetWeightKg")) peObj.getDouble("targetWeightKg").toFloat() else null
+                                    targetWeightKg = if (peObj.has("targetWeightKg")) peObj.getDouble("targetWeightKg").toFloat() else null,
+                                    supersetLabel = if (peObj.has("supersetLabel")) peObj.getString("supersetLabel") else null
                                 )
                             )
                         }
@@ -244,8 +253,9 @@ class BackupManager @Inject constructor(
                         existingExercises[exName.lowercase()] = exerciseEntity
                     }
 
+                    val supersetLbl = if (exItem.has("supersetLabel")) exItem.getString("supersetLabel") else null
                     val weId = database.workoutDao().insertWorkoutExercises(
-                        listOf(WorkoutExerciseEntity(workoutId = workoutId, exerciseId = exerciseEntity.id, orderIndex = orderIndex))
+                        listOf(WorkoutExerciseEntity(workoutId = workoutId, exerciseId = exerciseEntity.id, orderIndex = orderIndex, supersetLabel = supersetLbl))
                     ).first()
 
                     val setsJson = exItem.optJSONArray("sets") ?: JSONArray()
@@ -261,7 +271,8 @@ class BackupManager @Inject constructor(
                                 weightKg = wVal,
                                 reps = rVal,
                                 orderIndex = sObj.optInt("orderIndex", k),
-                                isCompleted = isDone
+                                isCompleted = isDone,
+                                setType = try { enumValueOf<SetType>(sObj.optString("setType", "NORMAL")) } catch (e: Exception) { SetType.NORMAL }
                             )
                         )
                     }

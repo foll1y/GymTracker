@@ -13,6 +13,9 @@ interface ExerciseDao {
     @Query("SELECT * FROM exercises WHERE muscleGroup = :group ORDER BY name ASC")
     fun getExercisesByGroup(group: MuscleGroup): Flow<List<ExerciseEntity>>
 
+    @Query("SELECT * FROM exercises WHERE id = :id LIMIT 1")
+    suspend fun getExerciseById(id: Long): ExerciseEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExercise(exercise: ExerciseEntity): Long
 

@@ -47,6 +47,9 @@ interface ProgramDao {
     @Update
     suspend fun updateProgramDayExercise(item: ProgramDayExerciseEntity)
 
+    @Update
+    suspend fun updateProgramDayExercises(items: List<ProgramDayExerciseEntity>)
+
     @Delete
     suspend fun deleteProgramDayExercise(item: ProgramDayExerciseEntity)
 

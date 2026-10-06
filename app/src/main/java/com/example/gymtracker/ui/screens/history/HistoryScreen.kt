@@ -11,20 +11,26 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.gymtracker.data.health.HealthConnectManager
+import com.example.gymtracker.data.local.dao.RawHistoryEntry
 import com.example.gymtracker.data.local.dao.WorkoutDao
+import com.example.gymtracker.data.local.entity.ExerciseEntity
 import com.example.gymtracker.data.local.entity.WorkoutEntity
+import com.example.gymtracker.data.model.SetType
 import com.example.gymtracker.data.model.WorkoutWithDetails
+import com.example.gymtracker.ui.components.ExerciseProgressBottomSheet
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -39,6 +45,8 @@ class HistoryViewModel @Inject constructor(
     private val healthConnectManager: HealthConnectManager
 ) : ViewModel() {
     val workouts: Flow<List<WorkoutWithDetails>> = workoutDao.getAllWorkouts()
+
+    fun getExerciseHistory(exerciseId: Long): Flow<List<RawHistoryEntry>> = workoutDao.getExerciseHistory(exerciseId)
 
     fun deleteWorkout(workout: WorkoutEntity) {
         viewModelScope.launch {
@@ -68,6 +76,15 @@ class HistoryViewModel @Inject constructor(
 fun HistoryScreen(viewModel: HistoryViewModel = hiltViewModel()) {
     val list by viewModel.workouts.collectAsState(initial = emptyList())
     val dateFormat = remember { SimpleDateFormat("dd MMMM yyyy, HH:mm", Locale.getDefault()) }
+
+    var selectedExerciseForProgress by remember { mutableStateOf<ExerciseEntity?>(null) }
+    val progressHistory by remember(selectedExerciseForProgress) {
+        if (selectedExerciseForProgress != null) {
+            viewModel.getExerciseHistory(selectedExerciseForProgress!!.id)
+        } else {
+            kotlinx.coroutines.flow.flowOf(emptyList())
+        }
+    }.collectAsState(initial = emptyList())
 
     Column(
         modifier = Modifier
@@ -102,11 +119,20 @@ fun HistoryScreen(viewModel: HistoryViewModel = hiltViewModel()) {
                         workoutDetails = w,
                         dateFormat = dateFormat,
                         onDelete = { viewModel.deleteWorkout(w.workout) },
-                        onSyncWatch = { viewModel.syncWorkoutWithWatch(w) }
+                        onSyncWatch = { viewModel.syncWorkoutWithWatch(w) },
+                        onExerciseClick = { selectedExerciseForProgress = it }
                     )
                 }
             }
         }
+    }
+
+    if (selectedExerciseForProgress != null) {
+        ExerciseProgressBottomSheet(
+            exercise = selectedExerciseForProgress,
+            historyEntries = progressHistory,
+            onDismiss = { selectedExerciseForProgress = null }
+        )
     }
 }
 
@@ -115,16 +141,15 @@ fun WorkoutHistoryCard(
     workoutDetails: WorkoutWithDetails,
     dateFormat: SimpleDateFormat,
     onDelete: () -> Unit,
-    onSyncWatch: () -> Unit
+    onSyncWatch: () -> Unit,
+    onExerciseClick: (ExerciseEntity) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    val totalVolumeKg = remember(workoutDetails) {
-        workoutDetails.exercises.sumOf { ex ->
-            ex.sets.filter { it.isCompleted || it.reps > 0 || it.weightKg > 0f }
-                .sumOf { (it.weightKg * it.reps).toDouble() }
-        }.toInt()
-    }
+    // Расчёт суммарного тоннажа (исключая разминочные сеты)
+    val totalTonnage = workoutDetails.exercises.sumOf { ex ->
+        ex.sets.filter { it.setType != SetType.WARMUP }.sumOf { (it.weightKg * it.reps).toDouble() }
+    }.toInt()
 
     Card(
         modifier = Modifier
@@ -132,51 +157,28 @@ fun WorkoutHistoryCard(
             .clip(RoundedCornerShape(24.dp))
             .clickable { expanded = !expanded },
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-        )
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(18.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                Column(Modifier.weight(1f)) {
                     Text(
                         text = dateFormat.format(Date(workoutDetails.workout.dateEpochMillis)),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(Modifier.height(4.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer
-                        ) {
-                            Text(
-                                text = "$totalVolumeKg кг",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerHighest
-                        ) {
-                            Text(
-                                text = "${workoutDetails.exercises.size} упр.",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
+                    Text(
+                        text = "${workoutDetails.exercises.size} упр. • Тоннаж: $totalTonnage кг",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -251,7 +253,7 @@ fun WorkoutHistoryCard(
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    text = "Нажмите, чтобы развернуть подходы",
+                    text = "Нажмите, чтобы развернуть подходы и график",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.secondary
                 )
@@ -265,22 +267,63 @@ fun WorkoutHistoryCard(
                     workoutDetails.exercises.forEachIndexed { exIndex, ex ->
                         if (exIndex > 0) Spacer(Modifier.height(14.dp))
 
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        // Заголовок упражнения (кликабелен для открытия графика прогресса)
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { onExerciseClick(ex.exercise) },
+                            color = Color.Transparent
                         ) {
-                            Text(
-                                text = ex.exercise.name,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = ex.exercise.muscleGroup.titleRu,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = ex.exercise.name,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Icon(
+                                        imageVector = Icons.Default.ShowChart,
+                                        contentDescription = "График прогресса",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (ex.workoutExercise.supersetLabel != null) {
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = MaterialTheme.colorScheme.secondaryContainer
+                                        ) {
+                                            Text(
+                                                text = "🔗 Суперсет ${ex.workoutExercise.supersetLabel}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Text(
+                                        text = ex.exercise.muscleGroup.titleRu,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
                         }
 
                         Spacer(Modifier.height(6.dp))
@@ -295,24 +338,49 @@ fun WorkoutHistoryCard(
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        text = "Сет ${setIndex + 1}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Text(
-                                        text = "${s.weightKg} кг × ${s.reps} повт.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        // Бейдж типа сета
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = when (s.setType) {
+                                                SetType.NORMAL -> MaterialTheme.colorScheme.surfaceContainerHighest
+                                                SetType.WARMUP -> Color(0xFF5A4D1A)
+                                                SetType.DROP -> Color(0xFF4A148C)
+                                                SetType.FAILURE -> Color(0xFF7F0000)
+                                            }
+                                        ) {
+                                            Text(
+                                                text = if (s.setType == SetType.NORMAL) "${setIndex + 1}" else s.setType.badge,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = when (s.setType) {
+                                                    SetType.NORMAL -> MaterialTheme.colorScheme.onSurfaceVariant
+                                                    SetType.WARMUP -> Color(0xFFFFD54F)
+                                                    SetType.DROP -> Color(0xFFE1BEE7)
+                                                    SetType.FAILURE -> Color(0xFFFF8A80)
+                                                },
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+
+                                        Text(
+                                            text = "${s.weightKg} кг × ${s.reps} повт.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+
                                     Text(
                                         text = "${(s.weightKg * s.reps).toInt()} кг",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.primary
+                                        color = if (s.setType == SetType.WARMUP) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary
                                     )
                                 }
                             }

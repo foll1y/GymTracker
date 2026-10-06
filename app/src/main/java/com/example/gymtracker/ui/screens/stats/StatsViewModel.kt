@@ -2,8 +2,12 @@ package com.example.gymtracker.ui.screens.stats
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.gymtracker.data.local.dao.ExerciseDao
+import com.example.gymtracker.data.local.dao.RawHistoryEntry
 import com.example.gymtracker.data.local.dao.WorkoutDao
+import com.example.gymtracker.data.local.entity.ExerciseEntity
 import com.example.gymtracker.data.model.MuscleGroup
+import com.example.gymtracker.data.model.SetType
 import com.example.gymtracker.domain.Formulas
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -53,11 +57,16 @@ data class StatsUiState(
 
 @HiltViewModel
 class StatsViewModel @Inject constructor(
-    private val workoutDao: WorkoutDao
+    private val workoutDao: WorkoutDao,
+    private val exerciseDao: ExerciseDao
 ) : ViewModel() {
 
     private val _period = MutableStateFlow(StatsPeriod.MONTH)
     val period: StateFlow<StatsPeriod> = _period.asStateFlow()
+
+    fun getExerciseHistory(exerciseId: Long): Flow<List<RawHistoryEntry>> = workoutDao.getExerciseHistory(exerciseId)
+
+    suspend fun getExercise(id: Long): ExerciseEntity? = exerciseDao.getExerciseById(id)
 
     val statsState: StateFlow<StatsUiState> = combine(workoutDao.getAllWorkouts(), _period) { workouts, period ->
         val now = System.currentTimeMillis()
@@ -98,32 +107,33 @@ class StatsViewModel @Inject constructor(
                 }
 
                 ex.sets.forEach { s ->
-                    // Подход считается выполненным, если стоит флаг isCompleted,
-                    // ЛИБО если у него заполнены повторения (reps > 0) или вес (weightKg > 0)
                     val isDone = s.isCompleted || s.reps > 0 || s.weightKg > 0f
                     if (isDone && (s.reps > 0 || s.weightKg > 0f)) {
                         totalSets++
                         muscleSetsCount[group] = (muscleSetsCount[group] ?: 0) + 1
                         exAgg.setsCount++
 
-                        val oneRm = if (s.weightKg > 0f && s.reps > 0) {
-                            Formulas.calculate1RM(s.weightKg, s.reps)
-                        } else if (s.weightKg > 0f) {
-                            s.weightKg
-                        } else 0f
+                        // Исключаем разминочные сеты из рекордов и 1ПМ
+                        if (s.setType != SetType.WARMUP) {
+                            val oneRm = if (s.weightKg > 0f && s.reps > 0) {
+                                Formulas.calculate1RM(s.weightKg, s.reps)
+                            } else if (s.weightKg > 0f) {
+                                s.weightKg
+                            } else 0f
 
-                        if (oneRm > exAgg.max1RM || (oneRm == exAgg.max1RM && s.weightKg > exAgg.maxWeight)) {
-                            exAgg.max1RM = oneRm
-                            exAgg.maxWeight = s.weightKg
-                            exAgg.repsAtMax = s.reps
-                        }
+                            if (oneRm > exAgg.max1RM || (oneRm == exAgg.max1RM && s.weightKg > exAgg.maxWeight)) {
+                                exAgg.max1RM = oneRm
+                                exAgg.maxWeight = s.weightKg
+                                exAgg.repsAtMax = s.reps
+                            }
 
-                        if (s.weightKg > overallMaxWeight) {
-                            overallMaxWeight = s.weightKg
-                        }
-                        if (oneRm > overallMax1RM) {
-                            overallMax1RM = oneRm
-                            overallBestExercise = ex.exercise.name
+                            if (s.weightKg > overallMaxWeight) {
+                                overallMaxWeight = s.weightKg
+                            }
+                            if (oneRm > overallMax1RM) {
+                                overallMax1RM = oneRm
+                                overallBestExercise = ex.exercise.name
+                            }
                         }
                     }
                 }

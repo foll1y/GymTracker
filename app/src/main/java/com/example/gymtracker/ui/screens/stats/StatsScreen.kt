@@ -25,6 +25,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.gymtracker.data.model.MuscleGroup
+import com.example.gymtracker.data.local.entity.ExerciseEntity
+import com.example.gymtracker.ui.components.ExerciseProgressBottomSheet
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,6 +35,15 @@ fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
     val state by viewModel.statsState.collectAsState()
     val period by viewModel.period.collectAsState()
     var expandedGroup by remember { mutableStateOf<MuscleGroup?>(null) }
+    val coroutineScope = rememberCoroutineScope()
+    var selectedExerciseForProgress by remember { mutableStateOf<ExerciseEntity?>(null) }
+    val progressHistory by remember(selectedExerciseForProgress) {
+        if (selectedExerciseForProgress != null) {
+            viewModel.getExerciseHistory(selectedExerciseForProgress!!.id)
+        } else {
+            kotlinx.coroutines.flow.flowOf(emptyList())
+        }
+    }.collectAsState(initial = emptyList())
 
     LazyColumn(
         modifier = Modifier
@@ -213,7 +225,14 @@ fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
                                     } else {
                                         stat.exercises.forEach { ex ->
                                             Surface(
-                                                modifier = Modifier.fillMaxWidth(),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .clickable {
+                                                        coroutineScope.launch {
+                                                            selectedExerciseForProgress = viewModel.getExercise(ex.exerciseId)
+                                                        }
+                                                    },
                                                 shape = RoundedCornerShape(12.dp),
                                                 color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f)
                                             ) {
@@ -260,6 +279,14 @@ fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
             }
         }
     }
+
+    if (selectedExerciseForProgress != null) {
+        ExerciseProgressBottomSheet(
+            exercise = selectedExerciseForProgress,
+            historyEntries = progressHistory,
+            onDismiss = { selectedExerciseForProgress = null }
+        )
+    }
 }
 
 @Composable
@@ -303,5 +330,13 @@ fun MetricCard(
                 )
             }
         }
+    }
+
+    if (selectedExerciseForProgress != null) {
+        ExerciseProgressBottomSheet(
+            exercise = selectedExerciseForProgress,
+            historyEntries = progressHistory,
+            onDismiss = { selectedExerciseForProgress = null }
+        )
     }
 }

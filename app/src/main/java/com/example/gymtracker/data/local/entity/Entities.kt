@@ -3,6 +3,7 @@ package com.example.gymtracker.data.local.entity
 import androidx.room.*
 import com.example.gymtracker.data.model.ExerciseType
 import com.example.gymtracker.data.model.MuscleGroup
+import com.example.gymtracker.data.model.SetType
 
 @Entity(tableName = "exercises")
 data class ExerciseEntity(
@@ -52,7 +53,8 @@ data class WorkoutExerciseEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val workoutId: Long,
     val exerciseId: Long,
-    val orderIndex: Int
+    val orderIndex: Int,
+    val supersetLabel: String? = null
 )
 
 @Entity(
@@ -73,7 +75,8 @@ data class SetEntryEntity(
     val weightKg: Float,
     val reps: Int,
     val orderIndex: Int,
-    val isCompleted: Boolean = true
+    val isCompleted: Boolean = true,
+    val setType: SetType = SetType.NORMAL
 )
 
 @Entity(tableName = "programs")
@@ -128,7 +131,8 @@ data class ProgramDayExerciseEntity(
     val orderIndex: Int,
     val targetSets: Int = 3,
     val targetReps: String = "8-12",
-    val targetWeightKg: Float? = null
+    val targetWeightKg: Float? = null,
+    val supersetLabel: String? = null
 )
 
 @Entity(tableName = "templates")
