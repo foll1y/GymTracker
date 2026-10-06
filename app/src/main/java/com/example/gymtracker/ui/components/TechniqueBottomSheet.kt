@@ -22,7 +22,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import com.example.gymtracker.data.local.entity.ExerciseEntity
 import com.example.gymtracker.ui.theme.ExpressivePrimary
@@ -42,7 +42,8 @@ fun TechniqueBottomSheet(
 
     var displayMode by remember { mutableStateOf(DisplayMode.SIDE_BY_SIDE) }
 
-    val baseUrl = "https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises"
+    // Используем международный быстрый CDN jsDelivr вместо raw.githubusercontent (который блокируется в РФ)
+    val baseUrl = "https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exercises"
     val frame0Url = if (exercise.imagePath.isNotBlank()) "$baseUrl/${exercise.imagePath}/0.jpg" else null
     val frame1Url = if (exercise.imagePath.isNotBlank()) "$baseUrl/${exercise.imagePath}/1.jpg" else null
 
@@ -111,7 +112,7 @@ fun TechniqueBottomSheet(
 
             Spacer(Modifier.height(14.dp))
 
-            // Переключатель режима отображения визуала: «Оба кадра» / «Анимация»
+            // Переключатель режима отображения: «Оба кадра» / «Анимация»
             if (frame0Url != null && frame1Url != null) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -135,26 +136,27 @@ fun TechniqueBottomSheet(
                 Spacer(Modifier.height(8.dp))
             }
 
-            // Блок визуальных примеров из free-exercise-db
+            // Блок визуализации: реальные фото через CDN с fallback на векторную схему
             if (frame0Url != null && frame1Url != null) {
                 if (displayMode == DisplayMode.SIDE_BY_SIDE) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        ExercisePhotoCard(
+                        ExercisePhotoCardWithFallback(
                             imageUrl = frame0Url,
                             label = "1. Исходное положение",
+                            exercise = exercise,
                             modifier = Modifier.weight(1f)
                         )
-                        ExercisePhotoCard(
+                        ExercisePhotoCardWithFallback(
                             imageUrl = frame1Url,
                             label = "2. Пик сокращения",
+                            exercise = exercise,
                             modifier = Modifier.weight(1f)
                         )
                     }
                 } else {
-                    // Анимация (плавное циклическое переключение кадров 0 ↔ 1)
                     val activeUrl = if (phase < 0.5f) frame0Url else frame1Url
                     val activeLabel = if (phase < 0.5f) "1. Исходное положение" else "2. Пик сокращения"
 
@@ -168,11 +170,23 @@ fun TechniqueBottomSheet(
                         contentAlignment = Alignment.Center
                     ) {
                         Crossfade(targetState = activeUrl, label = "crossfade_exercise") { url ->
-                            AsyncImage(
+                            SubcomposeAsyncImage(
                                 model = ImageRequest.Builder(LocalContext.current)
                                     .data(url)
                                     .crossfade(true)
                                     .build(),
+                                loading = {
+                                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(28.dp),
+                                            color = MaterialTheme.colorScheme.primary,
+                                            strokeWidth = 2.dp
+                                        )
+                                    }
+                                },
+                                error = {
+                                    ExerciseMotionDiagram(exercise = exercise)
+                                },
                                 contentDescription = null,
                                 contentScale = ContentScale.Fit,
                                 modifier = Modifier.fillMaxSize()
@@ -197,7 +211,6 @@ fun TechniqueBottomSheet(
                     }
                 }
             } else {
-                // Если упражнение кастомное или нет фото — показываем схематичную диаграмму
                 ExerciseMotionDiagram(exercise = exercise)
             }
 
@@ -258,9 +271,10 @@ fun TechniqueBottomSheet(
 }
 
 @Composable
-private fun ExercisePhotoCard(
+private fun ExercisePhotoCardWithFallback(
     imageUrl: String,
     label: String,
+    exercise: ExerciseEntity,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -270,11 +284,25 @@ private fun ExercisePhotoCard(
         border = CardDefaults.outlinedCardBorder().copy(width = 1.dp)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            AsyncImage(
+            SubcomposeAsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(imageUrl)
                     .crossfade(true)
                     .build(),
+                loading = {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            strokeWidth = 2.dp
+                        )
+                    }
+                },
+                error = {
+                    Box(Modifier.fillMaxSize().padding(8.dp), contentAlignment = Alignment.Center) {
+                        ExerciseMotionDiagram(exercise = exercise)
+                    }
+                },
                 contentDescription = label,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize().padding(6.dp)

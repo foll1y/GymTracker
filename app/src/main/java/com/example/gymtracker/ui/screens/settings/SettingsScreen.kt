@@ -6,10 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Backup
-import androidx.compose.material.icons.filled.FileDownload
-import androidx.compose.material.icons.filled.FileUpload
-import androidx.compose.material.icons.filled.Watch
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,6 +24,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
     val context = LocalContext.current
     var isKg by remember { mutableStateOf(true) }
     val isConnected by viewModel.isHealthConnected.collectAsState()
+    val isImportingCatalog by viewModel.isImportingCatalog.collectAsState()
     val statusMsg by viewModel.statusMessage.collectAsState()
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -71,7 +69,53 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                 Text("Настройки", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             }
 
-            // Единицы веса
+            // 1. Полная база упражнений (900+)
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                ) {
+                    Column(Modifier.padding(18.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.MenuBook, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(10.dp))
+                            Text("Энциклопедия упражнений", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Расширенная база содержит 900+ упражнений на русском языке с техникой выполнения и фотографиями.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Spacer(Modifier.height(14.dp))
+                        Button(
+                            onClick = { viewModel.importFullCatalog() },
+                            enabled = !isImportingCatalog,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (isImportingCatalog) {
+                                CircularProgressIndicator(
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("Импортирую 900+ упражнений...")
+                            } else {
+                                Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Загрузить полную базу (900+ упражнений)")
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. Единицы веса
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -99,7 +143,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                 }
             }
 
-            // Резервное копирование и перенос (JSON)
+            // 3. Резервное копирование и перенос (JSON)
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -152,7 +196,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                 }
             }
 
-            // Смарт-часы (Health Connect / OHealth)
+            // 4. Смарт-часы (Health Connect / OHealth)
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),

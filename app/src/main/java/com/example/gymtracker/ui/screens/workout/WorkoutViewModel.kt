@@ -9,6 +9,7 @@ import com.example.gymtracker.data.local.dao.WorkoutDao
 import com.example.gymtracker.data.local.entity.*
 import com.example.gymtracker.data.model.ExerciseType
 import com.example.gymtracker.data.model.MuscleGroup
+import com.example.gymtracker.data.online.OnlineExerciseCatalog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -30,7 +31,7 @@ data class EditableExercise(
     val exercise: ExerciseEntity,
     val sets: List<EditableSet> = emptyList(),
     val allTimeMaxWeight: Float = 0f,
-    val isWeighted: Boolean = false // для WEIGHTED_BODYWEIGHT: включено ли отягощение (+кг)
+    val isWeighted: Boolean = false
 )
 
 data class ActiveWorkoutUiState(
@@ -45,13 +46,25 @@ class WorkoutViewModel @Inject constructor(
     private val exerciseDao: ExerciseDao,
     private val workoutDao: WorkoutDao,
     private val programDao: ProgramDao,
-    private val healthConnectManager: HealthConnectManager
+    private val healthConnectManager: HealthConnectManager,
+    private val onlineCatalog: OnlineExerciseCatalog
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ActiveWorkoutUiState())
     val uiState: StateFlow<ActiveWorkoutUiState> = _uiState.asStateFlow()
 
     val allExercises: Flow<List<ExerciseEntity>> = exerciseDao.getAllExercises()
+
+    fun searchCatalog(query: String, filterGroup: MuscleGroup?): List<ExerciseEntity> {
+        return onlineCatalog.search(query, filterGroup)
+    }
+
+    fun addOnlineExercise(exercise: ExerciseEntity) {
+        viewModelScope.launch {
+            val id = exerciseDao.insertExercise(exercise.copy(id = 0, isCustom = false))
+            addExercise(exercise.copy(id = id))
+        }
+    }
 
     fun initWorkout(dayId: Long?) {
         if (dayId != null && dayId > 0 && _uiState.value.exercises.isEmpty()) {

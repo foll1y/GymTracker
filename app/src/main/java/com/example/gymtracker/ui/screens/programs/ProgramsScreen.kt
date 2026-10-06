@@ -599,7 +599,16 @@ fun ProgramsScreen(
                             matchGroup && matchQ
                         }
 
-                        LazyColumn(Modifier.height(200.dp)) {
+                        val existingNames = remember(allExercises) { allExercises.map { it.name.lowercase().trim() }.toSet() }
+                        val onlineMatches = remember(exerciseSearchQuery, filterMuscleGroup, allExercises) {
+                            if (exerciseSearchQuery.isNotBlank() || filterMuscleGroup != null) {
+                                viewModel.searchCatalog(exerciseSearchQuery, filterMuscleGroup)
+                                    .filter { it.name.lowercase().trim() !in existingNames }
+                                    .take(20)
+                            } else emptyList()
+                        }
+
+                        LazyColumn(Modifier.height(240.dp)) {
                             items(filteredList.size) { i ->
                                 val ex = filteredList[i]
                                 ListItem(
@@ -609,6 +618,48 @@ fun ProgramsScreen(
                                         selectedExerciseForAdd = ex
                                     }
                                 )
+                            }
+
+                            if (onlineMatches.isNotEmpty()) {
+                                item {
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                                    ) {
+                                        Text(
+                                            text = "🌐 Найдено в полной энциклопедии (${onlineMatches.size}):",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                        )
+                                    }
+                                }
+                                items(onlineMatches.size) { i ->
+                                    val ex = onlineMatches[i]
+                                    ListItem(
+                                        headlineContent = { Text(ex.name, fontWeight = FontWeight.SemiBold) },
+                                        supportingContent = { Text("${ex.muscleGroup.titleRu} • ${ex.exerciseType.titleRu}", color = MaterialTheme.colorScheme.secondary) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        trailingContent = {
+                                            Button(
+                                                onClick = {
+                                                    coroutineScope.launch {
+                                                        val savedEx = viewModel.importCatalogExercise(ex)
+                                                        selectedExerciseForAdd = savedEx
+                                                    }
+                                                },
+                                                shape = RoundedCornerShape(12.dp),
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                            ) {
+                                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                Spacer(Modifier.width(4.dp))
+                                                Text("В план", style = MaterialTheme.typography.labelSmall)
+                                            }
+                                        }
+                                    )
+                                }
                             }
                         }
 

@@ -426,7 +426,16 @@ fun ActiveWorkoutScreen(
                         matchesGroup && matchesSearch
                     }
 
-                    LazyColumn(Modifier.height(240.dp)) {
+                    val existingNames = remember(allExercises) { allExercises.map { it.name.lowercase().trim() }.toSet() }
+                    val onlineMatches = remember(searchQuery, selectedGroupFilter, allExercises) {
+                        if (searchQuery.isNotBlank() || selectedGroupFilter != null) {
+                            viewModel.searchCatalog(searchQuery, selectedGroupFilter)
+                                .filter { it.name.lowercase().trim() !in existingNames }
+                                .take(20)
+                        } else emptyList()
+                    }
+
+                    LazyColumn(Modifier.height(260.dp)) {
                         items(filtered.size) { index ->
                             val ex = filtered[index]
                             ListItem(
@@ -449,6 +458,50 @@ fun ActiveWorkoutScreen(
                                     }
                                 }
                             )
+                        }
+
+                        if (onlineMatches.isNotEmpty()) {
+                            item {
+                                Surface(
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                                ) {
+                                    Text(
+                                        text = "🌐 Найдено в полной энциклопедии (${onlineMatches.size}):",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+                            items(onlineMatches.size) { index ->
+                                val ex = onlineMatches[index]
+                                ListItem(
+                                    colors = ListItemDefaults.colors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                                    ),
+                                    headlineContent = { Text(ex.name, fontWeight = FontWeight.SemiBold) },
+                                    supportingContent = { Text("${ex.muscleGroup.titleRu} • ${ex.exerciseType.titleRu}", color = MaterialTheme.colorScheme.secondary) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    trailingContent = {
+                                        Button(
+                                            onClick = {
+                                                viewModel.addOnlineExercise(ex)
+                                                showExerciseDialog = false
+                                                searchQuery = ""
+                                            },
+                                            shape = RoundedCornerShape(12.dp),
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                        ) {
+                                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("В базу", style = MaterialTheme.typography.labelSmall)
+                                        }
+                                    }
+                                )
+                            }
                         }
                     }
 

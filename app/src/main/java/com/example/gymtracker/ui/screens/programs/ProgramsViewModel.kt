@@ -7,6 +7,7 @@ import com.example.gymtracker.data.local.dao.ProgramDao
 import com.example.gymtracker.data.local.entity.*
 import com.example.gymtracker.data.model.MuscleGroup
 import com.example.gymtracker.data.model.ProgramWithDays
+import com.example.gymtracker.data.online.OnlineExerciseCatalog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -15,13 +16,23 @@ import javax.inject.Inject
 @HiltViewModel
 class ProgramsViewModel @Inject constructor(
     private val programDao: ProgramDao,
-    private val exerciseDao: ExerciseDao
+    private val exerciseDao: ExerciseDao,
+    private val onlineCatalog: OnlineExerciseCatalog
 ) : ViewModel() {
 
     val programs: StateFlow<List<ProgramWithDays>> = programDao.getAllProgramsWithDays()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allExercises: Flow<List<ExerciseEntity>> = exerciseDao.getAllExercises()
+
+    fun searchCatalog(query: String, filterGroup: MuscleGroup?): List<ExerciseEntity> {
+        return onlineCatalog.search(query, filterGroup)
+    }
+
+    suspend fun importCatalogExercise(exercise: ExerciseEntity): ExerciseEntity {
+        val id = exerciseDao.insertExercise(exercise.copy(id = 0, isCustom = false))
+        return exercise.copy(id = id)
+    }
 
     fun createProgram(title: String, description: String = "") {
         viewModelScope.launch {
