@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import com.example.gymtracker.data.local.AppDatabase
 import com.example.gymtracker.data.local.entity.*
+import com.example.gymtracker.data.model.ExerciseType
 import com.example.gymtracker.data.model.MuscleGroup
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -22,7 +23,7 @@ class BackupManager @Inject constructor(
     suspend fun exportBackup(context: Context, uri: Uri): Result<Int> = withContext(Dispatchers.IO) {
         try {
             val root = JSONObject()
-            root.put("version", 1)
+            root.put("version", 2)
             root.put("exportedAt", System.currentTimeMillis())
 
             val exercises = database.exerciseDao().getAllExercises().first()
@@ -33,9 +34,47 @@ class BackupManager @Inject constructor(
                 obj.put("name", ex.name)
                 obj.put("muscleGroup", ex.muscleGroup.name)
                 obj.put("isCustom", ex.isCustom)
+                obj.put("exerciseType", ex.exerciseType.name)
+                obj.put("setupTip", ex.setupTip)
+                obj.put("executionTip", ex.executionTip)
+                obj.put("mistakeTip", ex.mistakeTip)
                 exercisesJson.put(obj)
             }
             root.put("exercises", exercisesJson)
+
+            val programsWithDays = database.programDao().getAllProgramsWithDays().first()
+            val programsJson = JSONArray()
+            programsWithDays.forEach { pd ->
+                val pObj = JSONObject()
+                pObj.put("title", pd.program.title)
+                pObj.put("description", pd.program.description)
+                pObj.put("isActive", pd.program.isActive)
+
+                val daysJson = JSONArray()
+                pd.days.forEach { d ->
+                    val dObj = JSONObject()
+                    dObj.put("name", d.day.name)
+                    dObj.put("orderIndex", d.day.orderIndex)
+
+                    val exListJson = JSONArray()
+                    d.exercises.forEach { pe ->
+                        val peObj = JSONObject()
+                        peObj.put("exerciseName", pe.exercise.name)
+                        peObj.put("orderIndex", pe.planExercise.orderIndex)
+                        peObj.put("targetSets", pe.planExercise.targetSets)
+                        peObj.put("targetReps", pe.planExercise.targetReps)
+                        if (pe.planExercise.targetWeightKg != null) {
+                            peObj.put("targetWeightKg", pe.planExercise.targetWeightKg.toDouble())
+                        }
+                        exListJson.put(peObj)
+                    }
+                    dObj.put("exercises", exListJson)
+                    daysJson.put(dObj)
+                }
+                pObj.put("days", daysJson)
+                programsJson.put(pObj)
+            }
+            root.put("programs", programsJson)
 
             val workoutsWithDetails = database.workoutDao().getAllWorkouts().first()
             val workoutsJson = JSONArray()
@@ -100,11 +139,65 @@ class BackupManager @Inject constructor(
                 val name = exObj.getString("name").trim()
                 val muscleGroupName = exObj.optString("muscleGroup", "CHEST")
                 val isCustom = exObj.optBoolean("isCustom", false)
+                val exTypeStr = exObj.optString("exerciseType", "WEIGHT_AND_REPS")
+                val exType = try { enumValueOf<ExerciseType>(exTypeStr) } catch (e: Exception) { ExerciseType.WEIGHT_AND_REPS }
                 val group = try { enumValueOf<MuscleGroup>(muscleGroupName) } catch (e: Exception) { MuscleGroup.CHEST }
 
                 if (!existingExercises.containsKey(name.lowercase())) {
-                    val id = database.exerciseDao().insertExercise(ExerciseEntity(name = name, muscleGroup = group, isCustom = isCustom))
-                    existingExercises[name.lowercase()] = ExerciseEntity(id = id, name = name, muscleGroup = group, isCustom = isCustom)
+                    val id = database.exerciseDao().insertExercise(
+                        ExerciseEntity(
+                            name = name,
+                            muscleGroup = group,
+                            isCustom = isCustom,
+                            exerciseType = exType,
+                            setupTip = exObj.optString("setupTip", ""),
+                            executionTip = exObj.optString("executionTip", ""),
+                            mistakeTip = exObj.optString("mistakeTip", "")
+                        )
+                    )
+                    existingExercises[name.lowercase()] = ExerciseEntity(id = id, name = name, muscleGroup = group, isCustom = isCustom, exerciseType = exType)
+                }
+            }
+
+            // Восстановление программ
+            val programsJson = root.optJSONArray("programs") ?: JSONArray()
+            for (p in 0 until programsJson.length()) {
+                val pObj = programsJson.getJSONObject(p)
+                val pTitle = pObj.getString("title")
+                val pDesc = pObj.optString("description", "")
+                val pActive = pObj.optBoolean("isActive", false)
+
+                val pId = database.programDao().insertProgram(
+                    ProgramEntity(title = pTitle, description = pDesc, isActive = pActive)
+                )
+
+                val daysJson = pObj.optJSONArray("days") ?: JSONArray()
+                for (d in 0 until daysJson.length()) {
+                    val dObj = daysJson.getJSONObject(d)
+                    val dName = dObj.getString("name")
+                    val dOrder = dObj.optInt("orderIndex", d)
+                    val dId = database.programDao().insertProgramDay(
+                        ProgramDayEntity(programId = pId, name = dName, orderIndex = dOrder)
+                    )
+
+                    val planExJson = dObj.optJSONArray("exercises") ?: JSONArray()
+                    for (e in 0 until planExJson.length()) {
+                        val peObj = planExJson.getJSONObject(e)
+                        val exName = peObj.getString("exerciseName")
+                        val ex = existingExercises[exName.lowercase()]
+                        if (ex != null) {
+                            database.programDao().insertProgramDayExercise(
+                                ProgramDayExerciseEntity(
+                                    dayId = dId,
+                                    exerciseId = ex.id,
+                                    orderIndex = peObj.optInt("orderIndex", e),
+                                    targetSets = peObj.optInt("targetSets", 3),
+                                    targetReps = peObj.optString("targetReps", "8-12"),
+                                    targetWeightKg = if (peObj.has("targetWeightKg")) peObj.getDouble("targetWeightKg").toFloat() else null
+                                )
+                            )
+                        }
+                    }
                 }
             }
 
@@ -157,13 +250,16 @@ class BackupManager @Inject constructor(
                     val setsList = mutableListOf<SetEntryEntity>()
                     for (k in 0 until setsJson.length()) {
                         val sObj = setsJson.getJSONObject(k)
+                        val wVal = sObj.optDouble("weightKg", 0.0).toFloat()
+                        val rVal = sObj.optInt("reps", 0)
+                        val isDone = sObj.optBoolean("isCompleted", true) || wVal > 0f || rVal > 0
                         setsList.add(
                             SetEntryEntity(
                                 workoutExerciseId = weId,
-                                weightKg = sObj.optDouble("weightKg", 0.0).toFloat(),
-                                reps = sObj.optInt("reps", 0),
+                                weightKg = wVal,
+                                reps = rVal,
                                 orderIndex = sObj.optInt("orderIndex", k),
-                                isCompleted = sObj.optBoolean("isCompleted", true)
+                                isCompleted = isDone
                             )
                         )
                     }

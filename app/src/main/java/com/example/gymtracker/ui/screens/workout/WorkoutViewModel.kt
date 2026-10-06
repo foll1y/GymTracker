@@ -4,8 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.gymtracker.data.health.HealthConnectManager
 import com.example.gymtracker.data.local.dao.ExerciseDao
+import com.example.gymtracker.data.local.dao.ProgramDao
 import com.example.gymtracker.data.local.dao.WorkoutDao
 import com.example.gymtracker.data.local.entity.*
+import com.example.gymtracker.data.model.ExerciseType
 import com.example.gymtracker.data.model.MuscleGroup
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -27,19 +29,22 @@ data class EditableSet(
 data class EditableExercise(
     val exercise: ExerciseEntity,
     val sets: List<EditableSet> = emptyList(),
-    val allTimeMaxWeight: Float = 0f
+    val allTimeMaxWeight: Float = 0f,
+    val isWeighted: Boolean = false // для WEIGHTED_BODYWEIGHT: включено ли отягощение (+кг)
 )
 
 data class ActiveWorkoutUiState(
     val startTimeEpochMillis: Long = System.currentTimeMillis(),
     val note: String = "",
-    val exercises: List<EditableExercise> = emptyList()
+    val exercises: List<EditableExercise> = emptyList(),
+    val programDayTitle: String? = null
 )
 
 @HiltViewModel
 class WorkoutViewModel @Inject constructor(
     private val exerciseDao: ExerciseDao,
     private val workoutDao: WorkoutDao,
+    private val programDao: ProgramDao,
     private val healthConnectManager: HealthConnectManager
 ) : ViewModel() {
 
@@ -47,6 +52,70 @@ class WorkoutViewModel @Inject constructor(
     val uiState: StateFlow<ActiveWorkoutUiState> = _uiState.asStateFlow()
 
     val allExercises: Flow<List<ExerciseEntity>> = exerciseDao.getAllExercises()
+
+    fun initWorkout(dayId: Long?) {
+        if (dayId != null && dayId > 0 && _uiState.value.exercises.isEmpty()) {
+            loadWorkoutFromProgramDay(dayId)
+        }
+    }
+
+    private fun loadWorkoutFromProgramDay(dayId: Long) {
+        viewModelScope.launch {
+            val dayWithExercises = programDao.getDayWithExercisesById(dayId) ?: return@launch
+            val editableExercisesList = mutableListOf<EditableExercise>()
+
+            dayWithExercises.exercises.forEach { planEx ->
+                val ex = planEx.exercise
+                val lastSets = workoutDao.getLastSetsForExercise(ex.id)
+                val history = workoutDao.getExerciseHistory(ex.id).first()
+                val maxHistoricalWeight = history.maxOfOrNull { it.weightKg } ?: 0f
+
+                val targetCount = planEx.planExercise.targetSets.coerceIn(1, 10)
+                val defaultWeightStr = if (planEx.planExercise.targetWeightKg != null && planEx.planExercise.targetWeightKg > 0f) {
+                    planEx.planExercise.targetWeightKg.toString()
+                } else if (lastSets.isNotEmpty() && lastSets.first().weightKg > 0f) {
+                    lastSets.first().weightKg.toString()
+                } else ""
+
+                val defaultRepsStr = if (planEx.planExercise.targetReps.isNotBlank()) {
+                    val firstNum = Regex("\\d+").find(planEx.planExercise.targetReps)?.value ?: "10"
+                    firstNum
+                } else if (lastSets.isNotEmpty() && lastSets.first().reps > 0) {
+                    lastSets.first().reps.toString()
+                } else "10"
+
+                val isWeightedDefault = ex.exerciseType == ExerciseType.WEIGHTED_BODYWEIGHT && defaultWeightStr.isNotBlank()
+
+                val setsList = (0 until targetCount).map { sIdx ->
+                    val last = lastSets.getOrNull(sIdx) ?: lastSets.firstOrNull()
+                    EditableSet(
+                        weight = defaultWeightStr,
+                        reps = defaultRepsStr,
+                        isCompleted = false,
+                        previousWeight = last?.weightKg,
+                        previousReps = last?.reps,
+                        historicalMaxWeight = maxHistoricalWeight
+                    )
+                }
+
+                editableExercisesList.add(
+                    EditableExercise(
+                        exercise = ex,
+                        sets = setsList,
+                        allTimeMaxWeight = maxHistoricalWeight,
+                        isWeighted = isWeightedDefault
+                    )
+                )
+            }
+
+            _uiState.update {
+                it.copy(
+                    exercises = editableExercisesList,
+                    programDayTitle = dayWithExercises.day.name
+                )
+            }
+        }
+    }
 
     fun addExercise(exercise: ExerciseEntity) {
         viewModelScope.launch {
@@ -59,7 +128,7 @@ class WorkoutViewModel @Inject constructor(
                 EditableSet(
                     weight = if (last.weightKg > 0) last.weightKg.toString() else "",
                     reps = if (last.reps > 0) last.reps.toString() else "",
-                    isCompleted = last.reps > 0 || last.weightKg > 0f,
+                    isCompleted = false,
                     previousWeight = last.weightKg,
                     previousReps = last.reps,
                     historicalMaxWeight = maxHistoricalWeight
@@ -77,11 +146,21 @@ class WorkoutViewModel @Inject constructor(
                 EditableExercise(
                     exercise = exercise,
                     sets = listOf(initialSet),
-                    allTimeMaxWeight = maxHistoricalWeight
+                    allTimeMaxWeight = maxHistoricalWeight,
+                    isWeighted = exercise.exerciseType == ExerciseType.WEIGHTED_BODYWEIGHT && (initialSet.previousWeight ?: 0f) > 0f
                 )
             )
             _uiState.update { it.copy(exercises = currentList) }
         }
+    }
+
+    fun toggleWeighted(exerciseIndex: Int) {
+        val updatedExercises = _uiState.value.exercises.mapIndexed { exIdx, ex ->
+            if (exIdx == exerciseIndex) {
+                ex.copy(isWeighted = !ex.isWeighted)
+            } else ex
+        }
+        _uiState.update { it.copy(exercises = updatedExercises) }
     }
 
     fun addCustomExercise(name: String, group: MuscleGroup) {
@@ -117,7 +196,7 @@ class WorkoutViewModel @Inject constructor(
                     if (sIdx == setIndex) {
                         val w = s.weight.toFloatOrNull() ?: 0f
                         val r = newReps.toIntOrNull() ?: 0
-                        val autoDone = s.isCompleted || (w > 0f && r > 0)
+                        val autoDone = s.isCompleted || (w > 0f && r > 0) || (r > 0 && ex.exercise.exerciseType == ExerciseType.BODYWEIGHT_ONLY)
                         s.copy(reps = newReps, isCompleted = autoDone)
                     } else s
                 }
@@ -135,7 +214,7 @@ class WorkoutViewModel @Inject constructor(
                     EditableSet(
                         weight = lastSet.weight,
                         reps = lastSet.reps,
-                        isCompleted = lastSet.weight.isNotBlank() && lastSet.reps.isNotBlank(),
+                        isCompleted = false,
                         previousWeight = lastSet.previousWeight,
                         previousReps = lastSet.previousReps,
                         historicalMaxWeight = ex.allTimeMaxWeight
@@ -210,7 +289,6 @@ class WorkoutViewModel @Inject constructor(
                 val setsToInsert = exItem.sets.mapIndexed { setIndex, s ->
                     val w = s.weight.toFloatOrNull() ?: 0f
                     val r = s.reps.toIntOrNull() ?: 0
-                    // Сет считается выполненным, если стоит галочка ИЛИ указаны вес/повторения
                     val isDone = s.isCompleted || (w > 0f && r > 0) || (r > 0)
                     SetEntryEntity(
                         workoutExerciseId = weId,

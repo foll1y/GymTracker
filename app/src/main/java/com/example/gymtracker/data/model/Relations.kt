@@ -27,3 +27,32 @@ data class WorkoutWithDetails(
     )
     val exercises: List<WorkoutExerciseWithDetails>
 )
+
+data class ProgramDayExerciseWithExercise(
+    @Embedded val planExercise: ProgramDayExerciseEntity,
+    @Relation(
+        parentColumn = "exerciseId",
+        entityColumn = "id"
+    )
+    val exercise: ExerciseEntity
+)
+
+data class ProgramDayWithExercises(
+    @Embedded val day: ProgramDayEntity,
+    @Relation(
+        entity = ProgramDayExerciseEntity::class,
+        parentColumn = "id",
+        entityColumn = "dayId"
+    )
+    val exercises: List<ProgramDayExerciseWithExercise>
+)
+
+data class ProgramWithDays(
+    @Embedded val program: ProgramEntity,
+    @Relation(
+        entity = ProgramDayEntity::class,
+        parentColumn = "id",
+        entityColumn = "programId"
+    )
+    val days: List<ProgramDayWithExercises>
+)

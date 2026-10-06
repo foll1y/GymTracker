@@ -1,6 +1,7 @@
 package com.example.gymtracker.data.local.entity
 
 import androidx.room.*
+import com.example.gymtracker.data.model.ExerciseType
 import com.example.gymtracker.data.model.MuscleGroup
 
 @Entity(tableName = "exercises")
@@ -8,7 +9,11 @@ data class ExerciseEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
     val muscleGroup: MuscleGroup,
-    val isCustom: Boolean = false
+    val isCustom: Boolean = false,
+    val exerciseType: ExerciseType = ExerciseType.WEIGHT_AND_REPS,
+    val setupTip: String = "",
+    val executionTip: String = "",
+    val mistakeTip: String = ""
 )
 
 @Entity(tableName = "workouts")
@@ -68,6 +73,61 @@ data class SetEntryEntity(
     val reps: Int,
     val orderIndex: Int,
     val isCompleted: Boolean = true
+)
+
+@Entity(tableName = "programs")
+data class ProgramEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val title: String,
+    val description: String = "",
+    val isActive: Boolean = false
+)
+
+@Entity(
+    tableName = "program_days",
+    foreignKeys = [
+        ForeignKey(
+            entity = ProgramEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["programId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index("programId")]
+)
+data class ProgramDayEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val programId: Long,
+    val name: String,
+    val orderIndex: Int
+)
+
+@Entity(
+    tableName = "program_day_exercises",
+    foreignKeys = [
+        ForeignKey(
+            entity = ProgramDayEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["dayId"],
+            onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = ExerciseEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["exerciseId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index("dayId"), Index("exerciseId")]
+)
+data class ProgramDayExerciseEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val dayId: Long,
+    val exerciseId: Long,
+    val orderIndex: Int,
+    val targetSets: Int = 3,
+    val targetReps: String = "8-12",
+    val targetWeightKg: Float? = null
 )
 
 @Entity(tableName = "templates")

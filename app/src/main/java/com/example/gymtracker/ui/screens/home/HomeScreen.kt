@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.ListAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -19,7 +20,10 @@ import com.example.gymtracker.ui.theme.ExpressivePrimary
 import com.example.gymtracker.ui.theme.ExpressiveSecondary
 
 @Composable
-fun HomeScreen(onStartWorkout: () -> Unit) {
+fun HomeScreen(
+    onStartWorkout: () -> Unit,
+    onOpenPrograms: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -60,7 +64,7 @@ fun HomeScreen(onStartWorkout: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Spacer(Modifier.height(48.dp))
+        Spacer(Modifier.height(44.dp))
 
         Button(
             onClick = onStartWorkout,
@@ -71,12 +75,26 @@ fun HomeScreen(onStartWorkout: () -> Unit) {
             ),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(68.dp),
+                .height(64.dp),
             elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp)
         ) {
-            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(28.dp))
-            Spacer(Modifier.width(12.dp))
-            Text("Начать тренировку", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(26.dp))
+            Spacer(Modifier.width(10.dp))
+            Text("Свободная тренировка", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        }
+
+        Spacer(Modifier.height(14.dp))
+
+        OutlinedButton(
+            onClick = onOpenPrograms,
+            shape = RoundedCornerShape(24.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(58.dp)
+        ) {
+            Icon(Icons.Default.ListAlt, contentDescription = null, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.width(10.dp))
+            Text("Планы и программы", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }

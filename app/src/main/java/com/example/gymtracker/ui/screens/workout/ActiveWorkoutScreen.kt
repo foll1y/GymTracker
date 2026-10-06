@@ -21,24 +21,34 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.gymtracker.data.local.entity.ExerciseEntity
+import com.example.gymtracker.data.model.ExerciseType
 import com.example.gymtracker.data.model.MuscleGroup
 import com.example.gymtracker.ui.components.LargeNumberInput
+import com.example.gymtracker.ui.components.TechniqueBottomSheet
 import com.example.gymtracker.ui.theme.ExpressiveSuccess
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ActiveWorkoutScreen(
     onWorkoutFinished: () -> Unit,
+    dayId: Long? = null,
     viewModel: WorkoutViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
     val allExercises by viewModel.allExercises.collectAsState(initial = emptyList())
     val context = LocalContext.current
 
+    LaunchedEffect(dayId) {
+        viewModel.initWorkout(dayId)
+    }
+
     var showExerciseDialog by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedGroupFilter by remember { mutableStateOf<MuscleGroup?>(null) }
     var newExerciseName by remember { mutableStateOf("") }
+
+    var selectedExerciseForTechnique by remember { mutableStateOf<ExerciseEntity?>(null) }
 
     DisposableEffect(Unit) {
         val window = (context as? Activity)?.window
@@ -52,7 +62,21 @@ fun ActiveWorkoutScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text("Запись тренировки", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Column {
+                        Text(
+                            text = state.programDayTitle ?: "Запись тренировки",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
+                        if (state.programDayTitle != null) {
+                            Text(
+                                text = "Тренировка по плану",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
                 },
                 actions = {
                     Button(
@@ -96,6 +120,11 @@ fun ActiveWorkoutScreen(
             }
 
             itemsIndexed(state.exercises) { exIndex, exerciseItem ->
+                val ex = exerciseItem.exercise
+                val isBodyweightOnly = ex.exerciseType == ExerciseType.BODYWEIGHT_ONLY
+                val isWeightedBodyweight = ex.exerciseType == ExerciseType.WEIGHTED_BODYWEIGHT
+                val showWeightField = !isBodyweightOnly && (!isWeightedBodyweight || exerciseItem.isWeighted)
+
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -112,21 +141,71 @@ fun ActiveWorkoutScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
-                                Text(
-                                    text = exerciseItem.exercise.name,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = exerciseItem.exercise.muscleGroup.titleRu,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.SemiBold
-                                )
+                            Column(Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = ex.name,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    IconButton(
+                                        onClick = { selectedExerciseForTechnique = ex },
+                                        modifier = Modifier.size(28.dp).padding(start = 4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Info,
+                                            contentDescription = "Техника выполнения",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = ex.muscleGroup.titleRu,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+
+                                    if (isWeightedBodyweight) {
+                                        FilterChip(
+                                            selected = exerciseItem.isWeighted,
+                                            onClick = { viewModel.toggleWeighted(exIndex) },
+                                            shape = RoundedCornerShape(8.dp),
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                                            ),
+                                            label = {
+                                                Text(
+                                                    if (exerciseItem.isWeighted) "+ Доп. вес" else "Свой вес",
+                                                    style = MaterialTheme.typography.labelSmall
+                                                )
+                                            }
+                                        )
+                                    } else if (isBodyweightOnly) {
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = MaterialTheme.colorScheme.surfaceContainerHighest
+                                        ) {
+                                            Text(
+                                                text = "Свой вес",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
                             }
 
-                            if (exerciseItem.allTimeMaxWeight > 0f) {
+                            if (exerciseItem.allTimeMaxWeight > 0f && showWeightField) {
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
                                     color = MaterialTheme.colorScheme.surfaceContainerHighest
@@ -143,6 +222,7 @@ fun ActiveWorkoutScreen(
 
                         Spacer(Modifier.height(12.dp))
 
+                        // Заголовки таблицы подходов
                         Row(
                             Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -150,8 +230,10 @@ fun ActiveWorkoutScreen(
                         ) {
                             Text("Сет", Modifier.weight(0.6f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("Прошлый", Modifier.weight(1.3f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("Вес (кг)", Modifier.weight(1.5f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("Повт.", Modifier.weight(1.2f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            if (showWeightField) {
+                                Text("Вес (кг)", Modifier.weight(1.5f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Text("Повт.", Modifier.weight(if (showWeightField) 1.2f else 2.5f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("Готово", Modifier.weight(0.9f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("", Modifier.weight(0.5f))
                         }
@@ -165,21 +247,21 @@ fun ActiveWorkoutScreen(
                             val prevR = setEntry.previousReps
                             val histMax = setEntry.historicalMaxWeight ?: 0f
 
-                            val isPR = currentW != null && currentW > 0f && histMax > 0f && currentW > histMax
+                            val isPR = showWeightField && currentW != null && currentW > 0f && histMax > 0f && currentW > histMax
 
                             val deltaText: String? = when {
-                                currentW != null && prevW != null && currentW > prevW -> {
+                                showWeightField && currentW != null && prevW != null && currentW > prevW -> {
                                     val diff = ((currentW - prevW) * 10).toInt() / 10f
                                     "+$diff кг"
                                 }
-                                currentW != null && prevW != null && currentW < prevW -> {
+                                showWeightField && currentW != null && prevW != null && currentW < prevW -> {
                                     val diff = ((prevW - currentW) * 10).toInt() / 10f
                                     "-$diff кг"
                                 }
-                                currentW != null && prevW != null && currentW == prevW && currentR != null && prevR != null && currentR > prevR -> {
+                                currentR != null && prevR != null && currentR > prevR -> {
                                     "+${currentR - prevR} повт."
                                 }
-                                currentW != null && prevW != null && currentW == prevW && currentR != null && prevR != null && currentR < prevR -> {
+                                currentR != null && prevR != null && currentR < prevR -> {
                                     "-${prevR - currentR} повт."
                                 }
                                 else -> null
@@ -196,9 +278,13 @@ fun ActiveWorkoutScreen(
                                 Text("${setIndex + 1}", Modifier.weight(0.6f), fontWeight = FontWeight.Bold)
 
                                 Column(Modifier.weight(1.3f)) {
-                                    val prevText = if (prevW != null && prevR != null) "${prevW}×${prevR}" else "—"
+                                    val prevText = if (showWeightField && prevW != null && prevW > 0f && prevR != null) {
+                                        "${prevW}×${prevR}"
+                                    } else if (prevR != null && prevR > 0) {
+                                        "${prevR} повт."
+                                    } else "—"
                                     Text(prevText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    
+
                                     if (isPR) {
                                         Text("🏆 Рекорд", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                                     } else if (deltaText != null) {
@@ -211,22 +297,23 @@ fun ActiveWorkoutScreen(
                                     }
                                 }
 
-                                LargeNumberInput(
-                                    value = setEntry.weight,
-                                    onValueChange = { viewModel.updateSetWeight(exIndex, setIndex, it) },
-                                    placeholder = "0",
-                                    isDecimal = true,
-                                    modifier = Modifier.weight(1.5f).height(56.dp)
-                                )
-
-                                Spacer(Modifier.width(4.dp))
+                                if (showWeightField) {
+                                    LargeNumberInput(
+                                        value = setEntry.weight,
+                                        onValueChange = { viewModel.updateSetWeight(exIndex, setIndex, it) },
+                                        placeholder = "0",
+                                        isDecimal = true,
+                                        modifier = Modifier.weight(1.5f).height(56.dp)
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                }
 
                                 LargeNumberInput(
                                     value = setEntry.reps,
                                     onValueChange = { viewModel.updateSetReps(exIndex, setIndex, it) },
                                     placeholder = "0",
                                     isDecimal = false,
-                                    modifier = Modifier.weight(1.2f).height(56.dp)
+                                    modifier = Modifier.weight(if (showWeightField) 1.2f else 2.5f).height(56.dp)
                                 )
 
                                 Checkbox(
@@ -347,7 +434,7 @@ fun ActiveWorkoutScreen(
                                     containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
                                 ),
                                 headlineContent = { Text(ex.name, fontWeight = FontWeight.SemiBold) },
-                                supportingContent = { Text(ex.muscleGroup.titleRu, color = MaterialTheme.colorScheme.primary) },
+                                supportingContent = { Text("${ex.muscleGroup.titleRu} • ${ex.exerciseType.titleRu}", color = MaterialTheme.colorScheme.primary) },
                                 modifier = Modifier.fillMaxWidth(),
                                 trailingContent = {
                                     FilledIconButton(
@@ -398,6 +485,13 @@ fun ActiveWorkoutScreen(
                     Text("Закрыть")
                 }
             }
+        )
+    }
+
+    if (selectedExerciseForTechnique != null) {
+        TechniqueBottomSheet(
+            exercise = selectedExerciseForTechnique,
+            onDismiss = { selectedExerciseForTechnique = null }
         )
     }
 }

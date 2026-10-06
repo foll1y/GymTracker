@@ -43,4 +43,7 @@ object DatabaseModule {
 
     @Provides
     fun provideTemplateDao(db: AppDatabase): TemplateDao = db.templateDao()
+
+    @Provides
+    fun provideProgramDao(db: AppDatabase): ProgramDao = db.programDao()
 }
