@@ -174,7 +174,7 @@ fun WorkoutHistoryCard(
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        text = "${workoutDetails.exercises.size} упр. • Тоннаж: $totalTonnage кг",
+                        text = "${workoutDetails.exercises.size} упр. • $totalSets подх.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold
@@ -377,11 +377,7 @@ fun WorkoutHistoryCard(
                                         )
                                     }
 
-                                    Text(
-                                        text = "${(s.weightKg * s.reps).toInt()} кг",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = if (s.setType == SetType.WARMUP) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary
-                                    )
+
                                 }
                             }
                         }

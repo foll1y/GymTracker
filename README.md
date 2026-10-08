@@ -1,7 +1,7 @@
 # GymTracker 🏋️‍♂️
 
 Современный и быстрый офлайн-дневник тренировок для Android на **Jetpack Compose** и **Material 3 Expressive**. 
-Включает конструктор программ, справочник техники с анимациями, базу из 970+ упражнений, аналитику прогресса и синхронизацию со смарт-часами через **Health Connect**.
+Включает умный конструктор программ, справочник техники с анимациями, базу из 970+ упражнений, аналитику прогресса и синхронизацию со смарт-часами через **Health Connect**.
 
 ---
 
@@ -42,5 +42,16 @@
    git add .
    git commit -m "Initial commit GymTracker"
    git branch -M main
-   git remote add origin [https://github.com/](https://github.com/)<ваш-логин>/gym-tracker.git
+   git remote add origin https://github.com/<ваш-логин>/gym-tracker.git
    git push -u origin main
+   ```
+2. Перейдите во вкладку **Actions** — сборка запустится автоматически.
+3. Скачайте готовый `app-debug.apk` в разделе **Artifacts**.
+
+### В Android Studio
+Откройте проект в Android Studio (Hedgehog или новее, JDK 17) и нажмите **Build** → **Build Bundle(s) / APK(s)** → **Build APK(s)**.
+
+---
+
+## 📄 Лицензия
+Распространяется под лицензией MIT.

@@ -230,7 +230,7 @@ fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
                                                     .clip(RoundedCornerShape(12.dp))
                                                     .clickable {
                                                         coroutineScope.launch {
-                                                            selectedExerciseForProgress = viewModel.getExercise(ex.exerciseId)
+                                                            selectedExerciseForProgress = viewModel.getExercise(ex.exerciseId) ?: ExerciseEntity(id = ex.exerciseId, name = ex.exerciseName, muscleGroup = stat.group)
                                                         }
                                                     },
                                                 shape = RoundedCornerShape(12.dp),
