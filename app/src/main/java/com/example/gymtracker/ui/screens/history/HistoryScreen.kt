@@ -146,10 +146,8 @@ fun WorkoutHistoryCard(
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    // Расчёт суммарного тоннажа (исключая разминочные сеты)
-    val totalTonnage = workoutDetails.exercises.sumOf { ex ->
-        ex.sets.filter { it.setType != SetType.WARMUP }.sumOf { (it.weightKg * it.reps).toDouble() }
-    }.toInt()
+    // Расчёт общего количества подходов
+    val totalSets = workoutDetails.exercises.sumOf { it.sets.size }
 
     Card(
         modifier = Modifier
