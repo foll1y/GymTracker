@@ -53,7 +53,9 @@ class Converters {
         SetEntryEntity::class,
         ProgramEntity::class,
         ProgramDayEntity::class,
-        ProgramDayExerciseEntity::class
+        ProgramDayExerciseEntity::class,
+        TemplateEntity::class,
+        TemplateExerciseEntity::class
     ],
     version = 6,
     exportSchema = false
@@ -62,6 +64,7 @@ class Converters {
 abstract class AppDatabase : RoomDatabase() {
     abstract fun exerciseDao(): ExerciseDao
     abstract fun workoutDao(): WorkoutDao
+    abstract fun templateDao(): TemplateDao
     abstract fun programDao(): ProgramDao
 
     class PrepopulateCallback(
@@ -72,15 +75,12 @@ abstract class AppDatabase : RoomDatabase() {
             super.onCreate(db)
             scope.launch(Dispatchers.IO) {
                 val dbInstance = databaseProvider.get()
-                val insertedIds = dbInstance.exerciseDao().insertAll(INITIAL_EXERCISES)
-                prepopulateDefaultPrograms(dbInstance, insertedIds)
+                dbInstance.exerciseDao().insertAll(INITIAL_EXERCISES)
+                prepopulateDefaultPrograms(dbInstance)
             }
         }
 
-        private suspend fun prepopulateDefaultPrograms(db: AppDatabase, insertedIds: List<Long>) {
-            fun exId(zeroBasedIndex: Int): Long =
-                insertedIds.getOrNull(zeroBasedIndex)?.takeIf { it > 0L } ?: (zeroBasedIndex + 1L)
-
+        private suspend fun prepopulateDefaultPrograms(db: AppDatabase) {
             val p1Id = db.programDao().insertProgram(
                 ProgramEntity(
                     title = "Классический сплит (3 дня)",
@@ -92,23 +92,20 @@ abstract class AppDatabase : RoomDatabase() {
             val day2Id = db.programDao().insertProgramDay(ProgramDayEntity(programId = p1Id, name = "День 2: Спина и бицепс", orderIndex = 1))
             val day3Id = db.programDao().insertProgramDay(ProgramDayEntity(programId = p1Id, name = "День 3: Ноги и плечи", orderIndex = 2))
 
-            // День 1: Жим лёжа (0), Жим гантелей на наклонной (1), Брусья на грудь (2), Разгибание на трицепс на блоке (41)
-            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = day1Id, exerciseId = exId(0), orderIndex = 0, targetSets = 4, targetReps = "8-10"))
-            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = day1Id, exerciseId = exId(1), orderIndex = 1, targetSets = 3, targetReps = "10-12"))
-            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = day1Id, exerciseId = exId(2), orderIndex = 2, targetSets = 3, targetReps = "10-12"))
-            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = day1Id, exerciseId = exId(41), orderIndex = 3, targetSets = 3, targetReps = "12-15"))
+            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = day1Id, exerciseId = 1, orderIndex = 0, targetSets = 4, targetReps = "8-10"))
+            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = day1Id, exerciseId = 2, orderIndex = 1, targetSets = 3, targetReps = "10-12"))
+            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = day1Id, exerciseId = 3, orderIndex = 2, targetSets = 3, targetReps = "10-12"))
+            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = day1Id, exerciseId = 42, orderIndex = 3, targetSets = 3, targetReps = "12-15"))
 
-            // День 2: Подтягивания (10), Тяга штанги в наклоне (11), Тяга верхнего блока (12), Подъём штанги на бицепс (38)
-            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = day2Id, exerciseId = exId(10), orderIndex = 0, targetSets = 4, targetReps = "8-10"))
-            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = day2Id, exerciseId = exId(11), orderIndex = 1, targetSets = 4, targetReps = "8-10"))
-            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = day2Id, exerciseId = exId(12), orderIndex = 2, targetSets = 3, targetReps = "10-12"))
-            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = day2Id, exerciseId = exId(38), orderIndex = 3, targetSets = 3, targetReps = "10-12"))
+            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = day2Id, exerciseId = 11, orderIndex = 0, targetSets = 4, targetReps = "8-10"))
+            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = day2Id, exerciseId = 12, orderIndex = 1, targetSets = 4, targetReps = "8-10"))
+            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = day2Id, exerciseId = 13, orderIndex = 2, targetSets = 3, targetReps = "10-12"))
+            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = day2Id, exerciseId = 39, orderIndex = 3, targetSets = 3, targetReps = "10-12"))
 
-            // День 3: Приседания со штангой (19), Жим ногами (21), Армейский жим (30), Махи через стороны (32)
-            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = day3Id, exerciseId = exId(19), orderIndex = 0, targetSets = 4, targetReps = "8-10"))
-            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = day3Id, exerciseId = exId(21), orderIndex = 1, targetSets = 3, targetReps = "10-12"))
-            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = day3Id, exerciseId = exId(30), orderIndex = 2, targetSets = 4, targetReps = "8-10"))
-            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = day3Id, exerciseId = exId(32), orderIndex = 3, targetSets = 4, targetReps = "12-15"))
+            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = day3Id, exerciseId = 20, orderIndex = 0, targetSets = 4, targetReps = "8-10"))
+            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = day3Id, exerciseId = 22, orderIndex = 1, targetSets = 3, targetReps = "10-12"))
+            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = day3Id, exerciseId = 31, orderIndex = 2, targetSets = 4, targetReps = "8-10"))
+            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = day3Id, exerciseId = 33, orderIndex = 3, targetSets = 4, targetReps = "12-15"))
 
             val p2Id = db.programDao().insertProgram(
                 ProgramEntity(
@@ -118,11 +115,11 @@ abstract class AppDatabase : RoomDatabase() {
                 )
             )
             val fbDayId = db.programDao().insertProgramDay(ProgramDayEntity(programId = p2Id, name = "Основной тренировочный день", orderIndex = 0))
-            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = fbDayId, exerciseId = exId(19), orderIndex = 0, targetSets = 3, targetReps = "8-10"))
-            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = fbDayId, exerciseId = exId(0), orderIndex = 1, targetSets = 3, targetReps = "8-10"))
-            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = fbDayId, exerciseId = exId(11), orderIndex = 2, targetSets = 3, targetReps = "8-10"))
-            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = fbDayId, exerciseId = exId(30), orderIndex = 3, targetSets = 3, targetReps = "10"))
-            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = fbDayId, exerciseId = exId(48), orderIndex = 4, targetSets = 3, targetReps = "15"))
+            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = fbDayId, exerciseId = 20, orderIndex = 0, targetSets = 3, targetReps = "8-10"))
+            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = fbDayId, exerciseId = 1, orderIndex = 1, targetSets = 3, targetReps = "8-10"))
+            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = fbDayId, exerciseId = 12, orderIndex = 2, targetSets = 3, targetReps = "8-10"))
+            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = fbDayId, exerciseId = 31, orderIndex = 3, targetSets = 3, targetReps = "10"))
+            db.programDao().insertProgramDayExercise(ProgramDayExerciseEntity(dayId = fbDayId, exerciseId = 49, orderIndex = 4, targetSets = 3, targetReps = "15"))
         }
     }
 
@@ -131,8 +128,6 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE exercises ADD COLUMN equipment TEXT NOT NULL DEFAULT ''")
                 db.execSQL("ALTER TABLE exercises ADD COLUMN nameEn TEXT NOT NULL DEFAULT ''")
-                db.execSQL("DROP TABLE IF EXISTS template_exercises")
-                db.execSQL("DROP TABLE IF EXISTS templates")
                 db.execSQL("UPDATE exercises SET imagePath = 'Barbell_Bench_Press_-_Medium_Grip' WHERE imagePath = 'Barbell_Bench_Press'")
             }
         }

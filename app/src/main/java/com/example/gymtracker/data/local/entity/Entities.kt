@@ -136,3 +136,34 @@ data class ProgramDayExerciseEntity(
     val targetWeightKg: Float? = null,
     val supersetLabel: String? = null
 )
+
+@Entity(tableName = "templates")
+data class TemplateEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String
+)
+
+@Entity(
+    tableName = "template_exercises",
+    foreignKeys = [
+        ForeignKey(
+            entity = TemplateEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["templateId"],
+            onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = ExerciseEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["exerciseId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index("templateId"), Index("exerciseId")]
+)
+data class TemplateExerciseEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val templateId: Long,
+    val exerciseId: Long,
+    val orderIndex: Int
+)

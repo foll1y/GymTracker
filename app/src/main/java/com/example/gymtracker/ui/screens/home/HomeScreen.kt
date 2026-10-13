@@ -214,7 +214,7 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.PlayCircleFilled,
+                            imageVector = Icons.Default.PlayArrow,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSecondaryContainer
                         )

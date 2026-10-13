@@ -277,7 +277,7 @@ fun WorkoutHistoryCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onEditNoteRequest) {
                         Icon(
-                            imageVector = Icons.Default.EditNote,
+                            imageVector = Icons.Default.Edit,
                             contentDescription = "Заметка",
                             tint = if (w.note.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )

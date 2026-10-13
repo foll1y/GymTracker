@@ -11,8 +11,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavGraph.Companion.findStartDestination
-import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
@@ -25,16 +23,6 @@ import com.example.gymtracker.ui.screens.stats.StatsScreen
 import com.example.gymtracker.ui.screens.workout.ActiveWorkoutScreen
 import com.example.gymtracker.ui.theme.GymTrackerTheme
 import dagger.hilt.android.AndroidEntryPoint
-
-private fun NavHostController.navigateSingleTopTo(route: String) {
-    this.navigate(route) {
-        popUpTo(this@navigateSingleTopTo.graph.findStartDestination().id) {
-            saveState = true
-        }
-        launchSingleTop = true
-        restoreState = true
-    }
-}
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -49,6 +37,16 @@ class MainActivity : ComponentActivity() {
 
                 val isWorkoutRoute = currentRoute?.startsWith(Screen.Workout.route) == true
 
+                val navigateToTab: (String) -> Unit = { route ->
+                    navController.navigate(route) {
+                        popUpTo(Screen.Home.route) {
+                            saveState = true
+                        }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
+
                 Scaffold(
                     bottomBar = {
                         if (!isWorkoutRoute) {
@@ -60,7 +58,7 @@ class MainActivity : ComponentActivity() {
                                     icon = { Icon(Icons.Default.Home, contentDescription = null) },
                                     label = { Text(Screen.Home.titleRu) },
                                     selected = currentRoute == Screen.Home.route,
-                                    onClick = { navController.navigateSingleTopTo(Screen.Home.route) },
+                                    onClick = { navigateToTab(Screen.Home.route) },
                                     colors = NavigationBarItemDefaults.colors(
                                         indicatorColor = MaterialTheme.colorScheme.primaryContainer,
                                         selectedIconColor = MaterialTheme.colorScheme.primary,
@@ -71,7 +69,7 @@ class MainActivity : ComponentActivity() {
                                     icon = { Icon(Icons.Default.ListAlt, contentDescription = null) },
                                     label = { Text(Screen.Programs.titleRu) },
                                     selected = currentRoute == Screen.Programs.route,
-                                    onClick = { navController.navigateSingleTopTo(Screen.Programs.route) },
+                                    onClick = { navigateToTab(Screen.Programs.route) },
                                     colors = NavigationBarItemDefaults.colors(
                                         indicatorColor = MaterialTheme.colorScheme.primaryContainer,
                                         selectedIconColor = MaterialTheme.colorScheme.primary,
@@ -82,7 +80,7 @@ class MainActivity : ComponentActivity() {
                                     icon = { Icon(Icons.Default.History, contentDescription = null) },
                                     label = { Text(Screen.History.titleRu) },
                                     selected = currentRoute == Screen.History.route,
-                                    onClick = { navController.navigateSingleTopTo(Screen.History.route) },
+                                    onClick = { navigateToTab(Screen.History.route) },
                                     colors = NavigationBarItemDefaults.colors(
                                         indicatorColor = MaterialTheme.colorScheme.primaryContainer,
                                         selectedIconColor = MaterialTheme.colorScheme.primary,
@@ -93,7 +91,7 @@ class MainActivity : ComponentActivity() {
                                     icon = { Icon(Icons.Default.BarChart, contentDescription = null) },
                                     label = { Text(Screen.Stats.titleRu) },
                                     selected = currentRoute == Screen.Stats.route,
-                                    onClick = { navController.navigateSingleTopTo(Screen.Stats.route) },
+                                    onClick = { navigateToTab(Screen.Stats.route) },
                                     colors = NavigationBarItemDefaults.colors(
                                         indicatorColor = MaterialTheme.colorScheme.primaryContainer,
                                         selectedIconColor = MaterialTheme.colorScheme.primary,
@@ -104,7 +102,7 @@ class MainActivity : ComponentActivity() {
                                     icon = { Icon(Icons.Default.Settings, contentDescription = null) },
                                     label = { Text(Screen.Settings.titleRu) },
                                     selected = currentRoute == Screen.Settings.route,
-                                    onClick = { navController.navigateSingleTopTo(Screen.Settings.route) },
+                                    onClick = { navigateToTab(Screen.Settings.route) },
                                     colors = NavigationBarItemDefaults.colors(
                                         indicatorColor = MaterialTheme.colorScheme.primaryContainer,
                                         selectedIconColor = MaterialTheme.colorScheme.primary,
@@ -126,7 +124,7 @@ class MainActivity : ComponentActivity() {
                                 onStartWorkoutDay = { dayId ->
                                     navController.navigate("${Screen.Workout.route}?dayId=$dayId")
                                 },
-                                onOpenPrograms = { navController.navigateSingleTopTo(Screen.Programs.route) }
+                                onOpenPrograms = { navigateToTab(Screen.Programs.route) }
                             )
                         }
                         composable(Screen.Programs.route) {

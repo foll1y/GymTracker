@@ -80,7 +80,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                 ) {
                     Column(Modifier.padding(18.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Timer, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.Default.Watch, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.width(10.dp))
                             Text("Таймер отдыха", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         }

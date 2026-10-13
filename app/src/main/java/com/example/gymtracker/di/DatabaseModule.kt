@@ -7,8 +7,8 @@ import com.example.gymtracker.data.local.dao.*
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
-import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import javax.inject.Provider
@@ -32,8 +32,7 @@ object DatabaseModule {
         )
             .addCallback(AppDatabase.PrepopulateCallback(provider, scope))
             .addMigrations(AppDatabase.MIGRATION_5_6)
-            .fallbackToDestructiveMigrationFrom(1, 2, 3, 4)
-            .fallbackToDestructiveMigrationOnDowngrade()
+            .fallbackToDestructiveMigration()
             .build()
     }
 
@@ -42,6 +41,9 @@ object DatabaseModule {
 
     @Provides
     fun provideWorkoutDao(db: AppDatabase): WorkoutDao = db.workoutDao()
+
+    @Provides
+    fun provideTemplateDao(db: AppDatabase): TemplateDao = db.templateDao()
 
     @Provides
     fun provideProgramDao(db: AppDatabase): ProgramDao = db.programDao()

@@ -149,7 +149,7 @@ fun ActiveWorkoutScreen(
                         onClick = { showNoteField = !showNoteField || state.note.isNotBlank() }
                     ) {
                         Icon(
-                            imageVector = Icons.Default.EditNote,
+                            imageVector = Icons.Default.Edit,
                             contentDescription = "Заметка к тренировке",
                             tint = if (state.note.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -164,7 +164,7 @@ fun ActiveWorkoutScreen(
                         }
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Timer,
+                            imageVector = Icons.Default.Watch,
                             contentDescription = "Таймер отдыха",
                             tint = if (state.isRestTimerRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -437,7 +437,7 @@ fun ActiveWorkoutScreen(
                                     modifier = Modifier.size(26.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.DeleteOutline,
+                                        imageVector = Icons.Default.Close,
                                         contentDescription = "Убрать упражнение",
                                         tint = MaterialTheme.colorScheme.outline,
                                         modifier = Modifier.size(18.dp)
@@ -1032,7 +1032,7 @@ private fun RestTimerBottomBar(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Timer,
+                        imageVector = Icons.Default.Watch,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary
                     )
@@ -1071,7 +1071,7 @@ private fun RestTimerBottomBar(
                     ) {
                         Text("+30с", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                     }
-                    FilledTonalButton(
+                    Button(
                         onClick = onSkip,
                         shape = RoundedCornerShape(10.dp),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
