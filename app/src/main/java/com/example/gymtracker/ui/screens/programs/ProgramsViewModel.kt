@@ -8,6 +8,7 @@ import com.example.gymtracker.data.local.entity.*
 import com.example.gymtracker.data.model.MuscleGroup
 import com.example.gymtracker.data.model.ProgramWithDays
 import com.example.gymtracker.data.online.OnlineExerciseCatalog
+import com.example.gymtracker.data.preferences.UserPreferencesManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -17,16 +18,24 @@ import javax.inject.Inject
 class ProgramsViewModel @Inject constructor(
     private val programDao: ProgramDao,
     private val exerciseDao: ExerciseDao,
-    private val onlineCatalog: OnlineExerciseCatalog
+    private val onlineCatalog: OnlineExerciseCatalog,
+    userPreferences: UserPreferencesManager
 ) : ViewModel() {
 
     val programs: StateFlow<List<ProgramWithDays>> = programDao.getAllProgramsWithDays()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allExercises: Flow<List<ExerciseEntity>> = exerciseDao.getAllExercises()
+    val isKg: StateFlow<Boolean> = userPreferences.isKg
 
-    fun searchCatalog(query: String, filterGroup: MuscleGroup?): List<ExerciseEntity> {
-        return onlineCatalog.search(query, filterGroup)
+    fun getAvailableEquipment(): List<String> = onlineCatalog.getAvailableEquipment()
+
+    fun searchCatalog(
+        query: String,
+        filterGroup: MuscleGroup?,
+        filterEquipment: String? = null
+    ): List<ExerciseEntity> {
+        return onlineCatalog.search(query, filterGroup, filterEquipment)
     }
 
     suspend fun importCatalogExercise(exercise: ExerciseEntity): ExerciseEntity {
@@ -40,6 +49,14 @@ class ProgramsViewModel @Inject constructor(
                 ProgramEntity(title = title.trim(), description = description.trim(), isActive = false)
             )
             programDao.insertProgramDay(ProgramDayEntity(programId = pId, name = "День 1", orderIndex = 0))
+        }
+    }
+
+    fun updateProgram(program: ProgramEntity, newTitle: String, newDescription: String) {
+        viewModelScope.launch {
+            programDao.updateProgram(
+                program.copy(title = newTitle.trim(), description = newDescription.trim())
+            )
         }
     }
 
@@ -62,6 +79,12 @@ class ProgramsViewModel @Inject constructor(
             programDao.insertProgramDay(
                 ProgramDayEntity(programId = programId, name = name.trim(), orderIndex = nextIndex)
             )
+        }
+    }
+
+    fun renameProgramDay(day: ProgramDayEntity, newName: String) {
+        viewModelScope.launch {
+            programDao.updateProgramDay(day.copy(name = newName.trim()))
         }
     }
 

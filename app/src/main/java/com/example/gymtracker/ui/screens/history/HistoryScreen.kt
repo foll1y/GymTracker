@@ -7,11 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.ShowChart
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,10 +26,13 @@ import com.example.gymtracker.data.local.entity.ExerciseEntity
 import com.example.gymtracker.data.local.entity.WorkoutEntity
 import com.example.gymtracker.data.model.SetType
 import com.example.gymtracker.data.model.WorkoutWithDetails
+import com.example.gymtracker.data.preferences.UserPreferencesManager
+import com.example.gymtracker.domain.Formulas
 import com.example.gymtracker.ui.components.ExerciseProgressBottomSheet
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -42,15 +41,23 @@ import javax.inject.Inject
 @HiltViewModel
 class HistoryViewModel @Inject constructor(
     private val workoutDao: WorkoutDao,
-    private val healthConnectManager: HealthConnectManager
+    private val healthConnectManager: HealthConnectManager,
+    userPreferences: UserPreferencesManager
 ) : ViewModel() {
     val workouts: Flow<List<WorkoutWithDetails>> = workoutDao.getAllWorkouts()
+    val isKg: StateFlow<Boolean> = userPreferences.isKg
 
     fun getExerciseHistory(exerciseId: Long): Flow<List<RawHistoryEntry>> = workoutDao.getExerciseHistory(exerciseId)
 
     fun deleteWorkout(workout: WorkoutEntity) {
         viewModelScope.launch {
             workoutDao.deleteWorkout(workout)
+        }
+    }
+
+    fun updateWorkoutNote(workoutId: Long, note: String) {
+        viewModelScope.launch {
+            workoutDao.updateWorkoutNote(workoutId, note.trim())
         }
     }
 
@@ -75,9 +82,14 @@ class HistoryViewModel @Inject constructor(
 @Composable
 fun HistoryScreen(viewModel: HistoryViewModel = hiltViewModel()) {
     val list by viewModel.workouts.collectAsState(initial = emptyList())
-    val dateFormat = remember { SimpleDateFormat("dd MMMM yyyy, HH:mm", Locale.getDefault()) }
+    val isKg by viewModel.isKg.collectAsState()
+    val dateFormat = remember { SimpleDateFormat("dd MMMM yyyy, HH:mm", Locale("ru")) }
 
     var selectedExerciseForProgress by remember { mutableStateOf<ExerciseEntity?>(null) }
+    var workoutPendingDeletion by remember { mutableStateOf<WorkoutEntity?>(null) }
+    var workoutForNoteEdit by remember { mutableStateOf<WorkoutEntity?>(null) }
+    var editNoteText by remember { mutableStateOf("") }
+
     val progressHistory by remember(selectedExerciseForProgress) {
         if (selectedExerciseForProgress != null) {
             viewModel.getExerciseHistory(selectedExerciseForProgress!!.id)
@@ -118,7 +130,12 @@ fun HistoryScreen(viewModel: HistoryViewModel = hiltViewModel()) {
                     WorkoutHistoryCard(
                         workoutDetails = w,
                         dateFormat = dateFormat,
-                        onDelete = { viewModel.deleteWorkout(w.workout) },
+                        isKg = isKg,
+                        onDeleteRequest = { workoutPendingDeletion = w.workout },
+                        onEditNoteRequest = {
+                            workoutForNoteEdit = w.workout
+                            editNoteText = w.workout.note
+                        },
                         onSyncWatch = { viewModel.syncWorkoutWithWatch(w) },
                         onExerciseClick = { selectedExerciseForProgress = it }
                     )
@@ -127,10 +144,74 @@ fun HistoryScreen(viewModel: HistoryViewModel = hiltViewModel()) {
         }
     }
 
+    if (workoutPendingDeletion != null) {
+        val target = workoutPendingDeletion!!
+        AlertDialog(
+            onDismissRequest = { workoutPendingDeletion = null },
+            shape = RoundedCornerShape(24.dp),
+            title = { Text("Удалить тренировку?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("Запись тренировки от ${dateFormat.format(Date(target.dateEpochMillis))} и все её подходы будут безвозвратно удалены.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteWorkout(target)
+                        workoutPendingDeletion = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Удалить", color = MaterialTheme.colorScheme.onError)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { workoutPendingDeletion = null }) {
+                    Text("Отмена")
+                }
+            }
+        )
+    }
+
+    if (workoutForNoteEdit != null) {
+        val target = workoutForNoteEdit!!
+        AlertDialog(
+            onDismissRequest = { workoutForNoteEdit = null },
+            shape = RoundedCornerShape(24.dp),
+            title = { Text("Заметка к тренировке", fontWeight = FontWeight.Bold) },
+            text = {
+                OutlinedTextField(
+                    value = editNoteText,
+                    onValueChange = { editNoteText = it },
+                    label = { Text("Комментарий (самочувствие, веса...)") },
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.updateWorkoutNote(target.id, editNoteText)
+                        workoutForNoteEdit = null
+                    },
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Сохранить")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { workoutForNoteEdit = null }) {
+                    Text("Отмена")
+                }
+            }
+        )
+    }
+
     if (selectedExerciseForProgress != null) {
         ExerciseProgressBottomSheet(
             exercise = selectedExerciseForProgress,
             historyEntries = progressHistory,
+            isKg = isKg,
             onDismiss = { selectedExerciseForProgress = null }
         )
     }
@@ -140,14 +221,26 @@ fun HistoryScreen(viewModel: HistoryViewModel = hiltViewModel()) {
 fun WorkoutHistoryCard(
     workoutDetails: WorkoutWithDetails,
     dateFormat: SimpleDateFormat,
-    onDelete: () -> Unit,
+    isKg: Boolean,
+    onDeleteRequest: () -> Unit,
+    onEditNoteRequest: () -> Unit,
     onSyncWatch: () -> Unit,
     onExerciseClick: (ExerciseEntity) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val sortedExercises = remember(workoutDetails.exercises) {
+        workoutDetails.exercises.sortedBy { it.workoutExercise.orderIndex }
+    }
 
-    // Расчёт общего количества подходов
-    val totalSets = workoutDetails.exercises.sumOf { it.sets.size }
+    val totalSets = sortedExercises.sumOf { it.sets.size }
+    val totalTonnageKg = remember(sortedExercises) {
+        var sum = 0f
+        sortedExercises.forEach { ex ->
+            sum += Formulas.calculateWorkingTonnage(ex.sets)
+        }
+        sum
+    }
+    val w = workoutDetails.workout
 
     Card(
         modifier = Modifier
@@ -166,13 +259,15 @@ fun WorkoutHistoryCard(
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        text = dateFormat.format(Date(workoutDetails.workout.dateEpochMillis)),
+                        text = dateFormat.format(Date(w.dateEpochMillis)),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(Modifier.height(4.dp))
+                    val durationPart = if (w.durationMinutes > 0) " • ⏱ ${w.durationMinutes} мин" else ""
+                    val tonnagePart = if (totalTonnageKg > 0f) " • ⚖️ ${Formulas.formatWeight(totalTonnageKg, isKg)}" else ""
                     Text(
-                        text = "${workoutDetails.exercises.size} упр. • $totalSets подх.",
+                        text = "${sortedExercises.size} упр. • $totalSets подх.$durationPart$tonnagePart",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold
@@ -180,6 +275,13 @@ fun WorkoutHistoryCard(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onEditNoteRequest) {
+                        Icon(
+                            imageVector = Icons.Default.EditNote,
+                            contentDescription = "Заметка",
+                            tint = if (w.note.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     IconButton(onClick = onSyncWatch) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
@@ -187,7 +289,7 @@ fun WorkoutHistoryCard(
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }
-                    IconButton(onClick = onDelete) {
+                    IconButton(onClick = onDeleteRequest) {
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = "Удалить",
@@ -201,8 +303,23 @@ fun WorkoutHistoryCard(
                 }
             }
 
+            if (w.note.isNotBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "📝 ${w.note}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                }
+            }
+
             // Блок данных с часов (Пульс и Калории)
-            val w = workoutDetails.workout
             if (w.avgHeartRate != null || w.activeCalories != null) {
                 Spacer(Modifier.height(10.dp))
                 Row(
@@ -242,7 +359,7 @@ fun WorkoutHistoryCard(
 
             if (!expanded) {
                 Spacer(Modifier.height(10.dp))
-                workoutDetails.exercises.forEach { ex ->
+                sortedExercises.forEach { ex ->
                     Text(
                         text = "• ${ex.exercise.name}: ${ex.sets.size} подх.",
                         style = MaterialTheme.typography.bodySmall,
@@ -262,10 +379,9 @@ fun WorkoutHistoryCard(
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
                     Spacer(Modifier.height(12.dp))
 
-                    workoutDetails.exercises.forEachIndexed { exIndex, ex ->
+                    sortedExercises.forEachIndexed { exIndex, ex ->
                         if (exIndex > 0) Spacer(Modifier.height(14.dp))
 
-                        // Заголовок упражнения (кликабелен для открытия графика прогресса)
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -280,7 +396,8 @@ fun WorkoutHistoryCard(
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.weight(1f)
                                 ) {
                                     Text(
                                         text = ex.exercise.name,
@@ -326,7 +443,8 @@ fun WorkoutHistoryCard(
 
                         Spacer(Modifier.height(6.dp))
 
-                        ex.sets.forEachIndexed { setIndex, s ->
+                        val sortedSets = ex.sets.sortedBy { it.orderIndex }
+                        sortedSets.forEachIndexed { setIndex, s ->
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -343,7 +461,6 @@ fun WorkoutHistoryCard(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        // Бейдж типа сета
                                         Surface(
                                             shape = RoundedCornerShape(6.dp),
                                             color = when (s.setType) {
@@ -367,15 +484,27 @@ fun WorkoutHistoryCard(
                                             )
                                         }
 
+                                        val setLabel = if (s.weightKg > 0f) {
+                                            "${Formulas.formatWeight(s.weightKg, isKg)} × ${s.reps} повт."
+                                        } else {
+                                            "${s.reps} повт."
+                                        }
                                         Text(
-                                            text = "${s.weightKg} кг × ${s.reps} повт.",
+                                            text = setLabel,
                                             style = MaterialTheme.typography.bodySmall,
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                     }
 
-
+                                    val oneRm = Formulas.calculate1RM(s.weightKg, s.reps)
+                                    if (oneRm > 0f && s.setType != SetType.WARMUP) {
+                                        Text(
+                                            text = "1ПМ: ${Formulas.formatWeight(oneRm, isKg)}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
                             }
                         }

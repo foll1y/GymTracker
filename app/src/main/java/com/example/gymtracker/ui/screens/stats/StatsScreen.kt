@@ -22,10 +22,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.gymtracker.data.model.MuscleGroup
 import com.example.gymtracker.data.local.entity.ExerciseEntity
+import com.example.gymtracker.data.model.MuscleGroup
+import com.example.gymtracker.domain.Formulas
 import com.example.gymtracker.ui.components.ExerciseProgressBottomSheet
 import kotlinx.coroutines.launch
 
@@ -34,6 +34,7 @@ import kotlinx.coroutines.launch
 fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
     val state by viewModel.statsState.collectAsState()
     val period by viewModel.period.collectAsState()
+    val isKg by viewModel.isKg.collectAsState()
     var expandedGroup by remember { mutableStateOf<MuscleGroup?>(null) }
     val coroutineScope = rememberCoroutineScope()
     var selectedExerciseForProgress by remember { mutableStateOf<ExerciseEntity?>(null) }
@@ -83,28 +84,38 @@ fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 MetricCard("Тренировок", "${state.totalWorkouts}", null, Modifier.weight(1f))
-                MetricCard("Стрик", "🔥 ${state.currentStreak} дн.", null, Modifier.weight(1f), isAccent = true)
+                MetricCard("Серия", "🔥 ${state.currentStreak} тр.", null, Modifier.weight(1f), isAccent = true)
             }
             Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 MetricCard(
                     title = "Макс. 1ПМ (1 повт.)",
-                    value = if (state.maxOneRepMaxKg > 0f) "${state.maxOneRepMaxKg} кг" else "—",
+                    value = if (state.maxOneRepMaxKg > 0f) Formulas.formatWeight(state.maxOneRepMaxKg, isKg) else "—",
                     subtitle = if (state.maxOneRepMaxExercise.isNotEmpty()) state.maxOneRepMaxExercise else null,
                     modifier = Modifier.weight(1f),
                     isAccent = true
                 )
                 MetricCard(
                     title = "Макс. подход",
-                    value = if (state.maxWorkingWeightKg > 0f) "${state.maxWorkingWeightKg} кг" else "—",
+                    value = if (state.maxWorkingWeightKg > 0f) Formulas.formatWeight(state.maxWorkingWeightKg, isKg) else "—",
                     subtitle = null,
                     modifier = Modifier.weight(1f)
                 )
             }
             Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                MetricCard("Всего подходов", "${state.totalSets}", null, Modifier.weight(1f))
-                MetricCard("Калории", if (state.totalCaloriesBurned > 0) "${state.totalCaloriesBurned} ккал" else "—", null, Modifier.weight(1f))
+                MetricCard(
+                    title = "Рабочий тоннаж",
+                    value = if (state.totalWorkingTonnageKg > 0f) Formulas.formatWeight(state.totalWorkingTonnageKg, isKg) else "—",
+                    subtitle = "${state.totalSets} подходов",
+                    modifier = Modifier.weight(1f)
+                )
+                MetricCard(
+                    title = "Калории",
+                    value = if (state.totalCaloriesBurned > 0) "${state.totalCaloriesBurned} ккал" else "—",
+                    subtitle = if (state.averageDurationMinutes > 0) "Ср. время: ${state.averageDurationMinutes} мин" else null,
+                    modifier = Modifier.weight(1f)
+                )
             }
             if (state.avgHeartRate > 0) {
                 Spacer(Modifier.height(12.dp))
@@ -129,7 +140,7 @@ fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Нажмите на группу мышц, чтобы увидеть максимум на 1 повторение по упражнениям",
+                        text = "Нажмите на группу мышц, чтобы увидеть рекорды и тоннаж по упражнениям",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -158,10 +169,14 @@ fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
                                         style = MaterialTheme.typography.bodyLarge,
                                         fontWeight = FontWeight.Bold
                                     )
-                                    val subText = if (stat.maxOneRepMaxKg > 0f) {
-                                        "${stat.totalSets} подх. • Макс. 1ПМ: ${stat.maxOneRepMaxKg} кг"
-                                    } else {
-                                        "${stat.totalSets} подходов"
+                                    val subText = buildString {
+                                        append("${stat.totalSets} подх.")
+                                        if (stat.maxOneRepMaxKg > 0f) {
+                                            append(" • 1ПМ: ${Formulas.formatWeight(stat.maxOneRepMaxKg, isKg)}")
+                                        }
+                                        if (stat.workingTonnageKg > 0f) {
+                                            append(" • Тоннаж: ${Formulas.formatWeight(stat.workingTonnageKg, isKg)}")
+                                        }
                                     }
                                     Text(
                                         text = subText,
@@ -203,7 +218,6 @@ fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
                                 strokeCap = StrokeCap.Round
                             )
 
-                            // Раскрывающийся список упражнений в группе
                             AnimatedVisibility(
                                 visible = isExpanded,
                                 enter = fadeIn() + expandVertically(),
@@ -230,7 +244,8 @@ fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
                                                     .clip(RoundedCornerShape(12.dp))
                                                     .clickable {
                                                         coroutineScope.launch {
-                                                            selectedExerciseForProgress = viewModel.getExercise(ex.exerciseId) ?: ExerciseEntity(id = ex.exerciseId, name = ex.exerciseName, muscleGroup = stat.group)
+                                                            selectedExerciseForProgress = viewModel.getExercise(ex.exerciseId)
+                                                                ?: ExerciseEntity(id = ex.exerciseId, name = ex.exerciseName, muscleGroup = stat.group)
                                                         }
                                                     },
                                                 shape = RoundedCornerShape(12.dp),
@@ -249,23 +264,30 @@ fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
                                                             style = MaterialTheme.typography.bodyMedium,
                                                             fontWeight = FontWeight.SemiBold
                                                         )
+                                                        val detailStr = if (ex.maxWeightKg > 0f) {
+                                                            "Рабочий: ${Formulas.formatWeight(ex.maxWeightKg, isKg)} × ${ex.repsAtMaxWeight} повт. • ${ex.totalSets} подх."
+                                                        } else {
+                                                            "${ex.totalSets} подх."
+                                                        }
                                                         Text(
-                                                            text = "Рабочий: ${ex.maxWeightKg} кг × ${ex.repsAtMaxWeight} повт. • ${ex.totalSets} подх.",
+                                                            text = detailStr,
                                                             style = MaterialTheme.typography.labelSmall,
                                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                                         )
                                                     }
-                                                    Surface(
-                                                        shape = RoundedCornerShape(10.dp),
-                                                        color = MaterialTheme.colorScheme.primaryContainer
-                                                    ) {
-                                                        Text(
-                                                            text = "1ПМ: ${ex.oneRepMaxKg} кг",
-                                                            style = MaterialTheme.typography.labelMedium,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                                        )
+                                                    if (ex.oneRepMaxKg > 0f) {
+                                                        Surface(
+                                                            shape = RoundedCornerShape(10.dp),
+                                                            color = MaterialTheme.colorScheme.primaryContainer
+                                                        ) {
+                                                            Text(
+                                                                text = "1ПМ: ${Formulas.formatWeight(ex.oneRepMaxKg, isKg)}",
+                                                                style = MaterialTheme.typography.labelMedium,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                            )
+                                                        }
                                                     }
                                                 }
                                             }
@@ -284,6 +306,7 @@ fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
         ExerciseProgressBottomSheet(
             exercise = selectedExerciseForProgress,
             historyEntries = progressHistory,
+            isKg = isKg,
             onDismiss = { selectedExerciseForProgress = null }
         )
     }

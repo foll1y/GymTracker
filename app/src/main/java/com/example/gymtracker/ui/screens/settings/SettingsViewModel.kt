@@ -7,8 +7,10 @@ import androidx.lifecycle.viewModelScope
 import com.example.gymtracker.data.backup.BackupManager
 import com.example.gymtracker.data.health.HealthConnectManager
 import com.example.gymtracker.data.online.OnlineExerciseCatalog
+import com.example.gymtracker.data.preferences.UserPreferencesManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -17,8 +19,13 @@ import javax.inject.Inject
 class SettingsViewModel @Inject constructor(
     val healthConnectManager: HealthConnectManager,
     private val backupManager: BackupManager,
-    private val onlineCatalog: OnlineExerciseCatalog
+    private val onlineCatalog: OnlineExerciseCatalog,
+    private val userPreferences: UserPreferencesManager
 ) : ViewModel() {
+
+    val isKg: StateFlow<Boolean> = userPreferences.isKg
+    val defaultRestSeconds: StateFlow<Int> = userPreferences.defaultRestSeconds
+    val autoStartRestTimer: StateFlow<Boolean> = userPreferences.autoStartRestTimer
 
     private val _isHealthConnected = MutableStateFlow(false)
     val isHealthConnected = _isHealthConnected.asStateFlow()
@@ -31,6 +38,18 @@ class SettingsViewModel @Inject constructor(
 
     init {
         checkPermissions()
+    }
+
+    fun setUseKg(useKg: Boolean) {
+        userPreferences.setUseKg(useKg)
+    }
+
+    fun setDefaultRestSeconds(seconds: Int) {
+        userPreferences.setDefaultRestSeconds(seconds)
+    }
+
+    fun setAutoStartRestTimer(enabled: Boolean) {
+        userPreferences.setAutoStartRestTimer(enabled)
     }
 
     fun checkPermissions() {
@@ -72,7 +91,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             val result = backupManager.importBackup(context, uri)
             _statusMessage.value = if (result.isSuccess) {
-                "Успешно восстановлено тренировок: ${result.getOrNull()}!"
+                "Успешно восстановлено новых тренировок: ${result.getOrNull()}!"
             } else {
                 "Ошибка восстановления: ${result.exceptionOrNull()?.localizedMessage}"
             }

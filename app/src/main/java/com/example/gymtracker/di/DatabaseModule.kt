@@ -31,7 +31,9 @@ object DatabaseModule {
             "gym_tracker.db"
         )
             .addCallback(AppDatabase.PrepopulateCallback(provider, scope))
-            .fallbackToDestructiveMigration()
+            .addMigrations(AppDatabase.MIGRATION_5_6)
+            .fallbackToDestructiveMigrationFrom(1, 2, 3, 4)
+            .fallbackToDestructiveMigrationOnDowngrade()
             .build()
     }
 
@@ -40,9 +42,6 @@ object DatabaseModule {
 
     @Provides
     fun provideWorkoutDao(db: AppDatabase): WorkoutDao = db.workoutDao()
-
-    @Provides
-    fun provideTemplateDao(db: AppDatabase): TemplateDao = db.templateDao()
 
     @Provides
     fun provideProgramDao(db: AppDatabase): ProgramDao = db.programDao()

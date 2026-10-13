@@ -24,7 +24,7 @@ class BackupManager @Inject constructor(
     suspend fun exportBackup(context: Context, uri: Uri): Result<Int> = withContext(Dispatchers.IO) {
         try {
             val root = JSONObject()
-            root.put("version", 2)
+            root.put("version", 3)
             root.put("exportedAt", System.currentTimeMillis())
 
             val exercises = database.exerciseDao().getAllExercises().first()
@@ -33,9 +33,11 @@ class BackupManager @Inject constructor(
                 val obj = JSONObject()
                 obj.put("id", ex.id)
                 obj.put("name", ex.name)
+                obj.put("nameEn", ex.nameEn)
                 obj.put("muscleGroup", ex.muscleGroup.name)
                 obj.put("isCustom", ex.isCustom)
                 obj.put("exerciseType", ex.exerciseType.name)
+                obj.put("equipment", ex.equipment)
                 obj.put("setupTip", ex.setupTip)
                 obj.put("executionTip", ex.executionTip)
                 obj.put("mistakeTip", ex.mistakeTip)
@@ -53,13 +55,13 @@ class BackupManager @Inject constructor(
                 pObj.put("isActive", pd.program.isActive)
 
                 val daysJson = JSONArray()
-                pd.days.forEach { d ->
+                pd.days.sortedBy { it.day.orderIndex }.forEach { d ->
                     val dObj = JSONObject()
                     dObj.put("name", d.day.name)
                     dObj.put("orderIndex", d.day.orderIndex)
 
                     val exListJson = JSONArray()
-                    d.exercises.forEach { pe ->
+                    d.exercises.sortedBy { it.planExercise.orderIndex }.forEach { pe ->
                         val peObj = JSONObject()
                         peObj.put("exerciseName", pe.exercise.name)
                         peObj.put("orderIndex", pe.planExercise.orderIndex)
@@ -96,7 +98,7 @@ class BackupManager @Inject constructor(
                 if (w.activeCalories != null) wObj.put("activeCalories", w.activeCalories)
 
                 val exercisesListJson = JSONArray()
-                wd.exercises.forEach { exDetails ->
+                wd.exercises.sortedBy { it.workoutExercise.orderIndex }.forEach { exDetails ->
                     val exItem = JSONObject()
                     exItem.put("exerciseName", exDetails.exercise.name)
                     exItem.put("muscleGroup", exDetails.exercise.muscleGroup.name)
@@ -106,7 +108,7 @@ class BackupManager @Inject constructor(
                     }
 
                     val setsJson = JSONArray()
-                    exDetails.sets.forEach { s ->
+                    exDetails.sets.sortedBy { it.orderIndex }.forEach { s ->
                         val sObj = JSONObject()
                         sObj.put("weightKg", s.weightKg.toDouble())
                         sObj.put("reps", s.reps)
@@ -146,34 +148,43 @@ class BackupManager @Inject constructor(
             for (i in 0 until exercisesJson.length()) {
                 val exObj = exercisesJson.getJSONObject(i)
                 val name = exObj.getString("name").trim()
+                val nameEn = exObj.optString("nameEn", "")
                 val muscleGroupName = exObj.optString("muscleGroup", "CHEST")
                 val isCustom = exObj.optBoolean("isCustom", false)
                 val exTypeStr = exObj.optString("exerciseType", "WEIGHT_AND_REPS")
                 val exType = try { enumValueOf<ExerciseType>(exTypeStr) } catch (e: Exception) { ExerciseType.WEIGHT_AND_REPS }
                 val group = try { enumValueOf<MuscleGroup>(muscleGroupName) } catch (e: Exception) { MuscleGroup.CHEST }
+                val equipment = exObj.optString("equipment", "")
                 val imgPath = exObj.optString("imagePath", "")
 
                 if (!existingExercises.containsKey(name.lowercase())) {
-                    val id = database.exerciseDao().insertExercise(
-                        ExerciseEntity(
-                            name = name,
-                            muscleGroup = group,
-                            isCustom = isCustom,
-                            exerciseType = exType,
-                            setupTip = exObj.optString("setupTip", ""),
-                            executionTip = exObj.optString("executionTip", ""),
-                            mistakeTip = exObj.optString("mistakeTip", ""),
-                            imagePath = imgPath
-                        )
+                    val entity = ExerciseEntity(
+                        name = name,
+                        nameEn = nameEn,
+                        muscleGroup = group,
+                        isCustom = isCustom,
+                        exerciseType = exType,
+                        equipment = equipment,
+                        setupTip = exObj.optString("setupTip", ""),
+                        executionTip = exObj.optString("executionTip", ""),
+                        mistakeTip = exObj.optString("mistakeTip", ""),
+                        imagePath = imgPath
                     )
-                    existingExercises[name.lowercase()] = ExerciseEntity(id = id, name = name, muscleGroup = group, isCustom = isCustom, exerciseType = exType, imagePath = imgPath)
+                    val id = database.exerciseDao().insertExercise(entity)
+                    existingExercises[name.lowercase()] = entity.copy(id = id)
                 }
             }
+
+            val existingProgramTitles = database.programDao().getAllProgramsWithDays().first()
+                .map { it.program.title.lowercase().trim() }.toMutableSet()
 
             val programsJson = root.optJSONArray("programs") ?: JSONArray()
             for (p in 0 until programsJson.length()) {
                 val pObj = programsJson.getJSONObject(p)
-                val pTitle = pObj.getString("title")
+                val pTitle = pObj.getString("title").trim()
+                if (pTitle.lowercase() in existingProgramTitles) continue
+                existingProgramTitles.add(pTitle.lowercase())
+
                 val pDesc = pObj.optString("description", "")
                 val pActive = pObj.optBoolean("isActive", false)
 
@@ -193,7 +204,7 @@ class BackupManager @Inject constructor(
                     val planExJson = dObj.optJSONArray("exercises") ?: JSONArray()
                     for (e in 0 until planExJson.length()) {
                         val peObj = planExJson.getJSONObject(e)
-                        val exName = peObj.getString("exerciseName")
+                        val exName = peObj.getString("exerciseName").trim()
                         val ex = existingExercises[exName.lowercase()]
                         if (ex != null) {
                             database.programDao().insertProgramDayExercise(
@@ -212,12 +223,18 @@ class BackupManager @Inject constructor(
                 }
             }
 
+            val existingWorkoutTimestamps = database.workoutDao().getAllWorkouts().first()
+                .map { it.workout.dateEpochMillis }.toMutableSet()
+
             val workoutsJson = root.optJSONArray("workouts") ?: JSONArray()
             var importedCount = 0
 
             for (i in 0 until workoutsJson.length()) {
                 val wObj = workoutsJson.getJSONObject(i)
                 val date = wObj.getLong("dateEpochMillis")
+                if (date in existingWorkoutTimestamps) continue
+                existingWorkoutTimestamps.add(date)
+
                 val duration = wObj.optInt("durationMinutes", 0)
                 val note = wObj.optString("note", "")
                 val startTime = wObj.optLong("startTimeEpochMillis", 0L)
@@ -264,7 +281,7 @@ class BackupManager @Inject constructor(
                         val sObj = setsJson.getJSONObject(k)
                         val wVal = sObj.optDouble("weightKg", 0.0).toFloat()
                         val rVal = sObj.optInt("reps", 0)
-                        val isDone = sObj.optBoolean("isCompleted", true) || wVal > 0f || rVal > 0
+                        val isDone = sObj.optBoolean("isCompleted", true)
                         setsList.add(
                             SetEntryEntity(
                                 workoutExerciseId = weId,

@@ -2,7 +2,6 @@ package com.example.gymtracker.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,7 +11,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,18 +24,15 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.gymtracker.data.local.dao.RawHistoryEntry
 import com.example.gymtracker.data.local.entity.ExerciseEntity
 import com.example.gymtracker.data.model.SetType
 import com.example.gymtracker.domain.Formulas
 import com.example.gymtracker.ui.theme.ExpressivePrimary
 import com.example.gymtracker.ui.theme.ExpressiveSecondary
-import com.example.gymtracker.ui.theme.ExpressiveSuccess
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
-import kotlin.math.roundToInt
 
 enum class ProgressPeriod(val title: String, val days: Long) {
     ONE_MONTH("1 мес", 30),
@@ -51,6 +46,7 @@ data class DayProgressPoint(
     val maxWeightKg: Float,
     val maxReps: Int,
     val oneRepMaxKg: Float,
+    val workingTonnageKg: Float,
     val totalSets: Int,
     val entries: List<RawHistoryEntry>
 )
@@ -60,6 +56,7 @@ data class DayProgressPoint(
 fun ExerciseProgressBottomSheet(
     exercise: ExerciseEntity?,
     historyEntries: List<RawHistoryEntry>,
+    isKg: Boolean = true,
     onDismiss: () -> Unit
 ) {
     if (exercise == null) return
@@ -70,6 +67,7 @@ fun ExerciseProgressBottomSheet(
 
     val dateFormat = remember { SimpleDateFormat("dd MMM yyyy", Locale("ru")) }
     val shortDateFormat = remember { SimpleDateFormat("dd.MM", Locale("ru")) }
+    val unitLabel = Formulas.unitLabel(isKg)
 
     // Группировка подходов по дате тренировки
     val dayPoints = remember(historyEntries, selectedPeriod) {
@@ -77,7 +75,6 @@ fun ExerciseProgressBottomSheet(
         val minEpoch = if (selectedPeriod.days == Long.MAX_VALUE) 0L else now - TimeUnit.DAYS.toMillis(selectedPeriod.days)
         val filtered = historyEntries.filter { it.date >= minEpoch }
 
-        // Группируем по календарным суткам
         val cal = Calendar.getInstance()
         val grouped = filtered.groupBy { entry ->
             cal.timeInMillis = entry.date
@@ -89,13 +86,19 @@ fun ExerciseProgressBottomSheet(
         }
 
         grouped.map { (dayEpoch, entries) ->
-            // При расчёте 1ПМ и рекорда исключаем разминочные сеты
             val workingEntries = entries.filter { it.setType != SetType.WARMUP }
             val candidateEntries = if (workingEntries.isNotEmpty()) workingEntries else entries
 
             var bestWeight = 0f
             var bestReps = 0
             var best1RM = 0f
+            var dayTonnage = 0f
+
+            workingEntries.forEach { e ->
+                if (e.weightKg > 0f && e.reps > 0) {
+                    dayTonnage += e.weightKg * e.reps
+                }
+            }
 
             candidateEntries.forEach { e ->
                 val oneRm = Formulas.calculate1RM(e.weightKg, e.reps)
@@ -111,17 +114,17 @@ fun ExerciseProgressBottomSheet(
                 maxWeightKg = bestWeight,
                 maxReps = bestReps,
                 oneRepMaxKg = best1RM,
+                workingTonnageKg = dayTonnage,
                 totalSets = entries.size,
                 entries = entries
             )
         }.sortedBy { it.dateEpoch }
     }
 
-    // Абсолютные рекорды за всё время
-    val allTimeBestWeight = remember(historyEntries) {
+    val allTimeBestWeightKg = remember(historyEntries) {
         historyEntries.filter { it.setType != SetType.WARMUP }.maxOfOrNull { it.weightKg } ?: 0f
     }
-    val allTimeBest1RM = remember(historyEntries) {
+    val allTimeBest1RMKg = remember(historyEntries) {
         historyEntries.filter { it.setType != SetType.WARMUP }
             .map { Formulas.calculate1RM(it.weightKg, it.reps) }
             .maxOrNull() ?: 0f
@@ -140,7 +143,6 @@ fun ExerciseProgressBottomSheet(
             contentPadding = PaddingValues(bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Заголовок
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -186,7 +188,6 @@ fun ExerciseProgressBottomSheet(
                 }
             }
 
-            // Фильтры периода
             item {
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
@@ -211,7 +212,6 @@ fun ExerciseProgressBottomSheet(
                 }
             }
 
-            // Карточки рекордов
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -230,7 +230,7 @@ fun ExerciseProgressBottomSheet(
                             )
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                if (allTimeBest1RM > 0f) "${allTimeBest1RM} кг" else "—",
+                                if (allTimeBest1RMKg > 0f) Formulas.formatWeight(allTimeBest1RMKg, isKg) else "—",
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = MaterialTheme.colorScheme.primary
@@ -251,7 +251,7 @@ fun ExerciseProgressBottomSheet(
                             )
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                if (allTimeBestWeight > 0f) "${allTimeBestWeight} кг" else "—",
+                                if (allTimeBestWeightKg > 0f) Formulas.formatWeight(allTimeBestWeightKg, isKg) else "—",
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -261,7 +261,6 @@ fun ExerciseProgressBottomSheet(
                 }
             }
 
-            // График прогресса
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -314,7 +313,6 @@ fun ExerciseProgressBottomSheet(
                                 )
                             }
                         } else {
-                            // Canvas график
                             val max1RMValue = (dayPoints.maxOf { it.oneRepMaxKg } * 1.15f).coerceAtLeast(10f)
                             val min1RMValue = 0f
 
@@ -342,7 +340,6 @@ fun ExerciseProgressBottomSheet(
                                     val w = size.width
                                     val h = size.height - 30f
 
-                                    // Сетка горизонтальная
                                     val gridSteps = 4
                                     val gridColor = Color.White.copy(alpha = 0.08f)
                                     for (i in 0..gridSteps) {
@@ -356,7 +353,6 @@ fun ExerciseProgressBottomSheet(
                                         )
                                     }
 
-                                    // Координаты точек
                                     val oneRmOffsets = mutableListOf<Offset>()
                                     val weightOffsets = mutableListOf<Offset>()
 
@@ -368,7 +364,6 @@ fun ExerciseProgressBottomSheet(
                                         weightOffsets.add(Offset(x, yWeight.coerceIn(0f, h)))
                                     }
 
-                                    // Линия 1: Рабочий вес (Secondary)
                                     val weightPath = Path().apply {
                                         weightOffsets.forEachIndexed { i, offset ->
                                             if (i == 0) moveTo(offset.x, offset.y) else lineTo(offset.x, offset.y)
@@ -380,7 +375,6 @@ fun ExerciseProgressBottomSheet(
                                         style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
                                     )
 
-                                    // Линия 2: 1ПМ (Primary)
                                     val oneRmPath = Path().apply {
                                         oneRmOffsets.forEachIndexed { i, offset ->
                                             if (i == 0) moveTo(offset.x, offset.y) else lineTo(offset.x, offset.y)
@@ -392,7 +386,6 @@ fun ExerciseProgressBottomSheet(
                                         style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
                                     )
 
-                                    // Точки
                                     oneRmOffsets.forEachIndexed { i, offset ->
                                         val isSelected = selectedPointIndex == i
                                         drawCircle(
@@ -411,7 +404,6 @@ fun ExerciseProgressBottomSheet(
                                     }
                                 }
 
-                                // Плашка выбранной точки
                                 if (selectedPoint != null) {
                                     Surface(
                                         shape = RoundedCornerShape(10.dp),
@@ -432,12 +424,12 @@ fun ExerciseProgressBottomSheet(
                                                 color = MaterialTheme.colorScheme.primary
                                             )
                                             Text(
-                                                "1ПМ: ${selectedPoint.oneRepMaxKg} кг",
+                                                "1ПМ: ${Formulas.formatWeight(selectedPoint.oneRepMaxKg, isKg)}",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 fontWeight = FontWeight.Bold
                                             )
                                             Text(
-                                                "Рабочий: ${selectedPoint.maxWeightKg} кг × ${selectedPoint.maxReps}",
+                                                "Рабочий: ${Formulas.formatWeight(selectedPoint.maxWeightKg, isKg)} × ${selectedPoint.maxReps}",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -446,7 +438,6 @@ fun ExerciseProgressBottomSheet(
                                 }
                             }
 
-                            // Подписи дат внизу
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -476,7 +467,6 @@ fun ExerciseProgressBottomSheet(
                 }
             }
 
-            // История всех тренировок с этим упражнением
             item {
                 Text(
                     text = "История подходов (${dayPoints.size})",
@@ -497,18 +487,27 @@ fun ExerciseProgressBottomSheet(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = dateFormat.format(Date(pt.dateEpoch)),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Column {
+                                Text(
+                                    text = dateFormat.format(Date(pt.dateEpoch)),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                if (pt.workingTonnageKg > 0f) {
+                                    Text(
+                                        text = "Тоннаж: ${Formulas.formatWeight(pt.workingTonnageKg, isKg)}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
                             if (pt.oneRepMaxKg > 0f) {
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
                                     color = MaterialTheme.colorScheme.primaryContainer
                                 ) {
                                     Text(
-                                        text = "1ПМ: ${pt.oneRepMaxKg} кг",
+                                        text = "1ПМ: ${Formulas.formatWeight(pt.oneRepMaxKg, isKg)}",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -555,17 +554,22 @@ fun ExerciseProgressBottomSheet(
                                         )
                                     }
 
+                                    val wDisplay = if (s.weightKg > 0f) {
+                                        "${Formulas.formatNumber(Formulas.convertWeight(s.weightKg, isKg))} $unitLabel × ${s.reps} повт."
+                                    } else {
+                                        "${s.reps} повт."
+                                    }
                                     Text(
-                                        text = "${s.weightKg} кг × ${s.reps} повт.",
+                                        text = wDisplay,
                                         style = MaterialTheme.typography.bodySmall,
                                         fontWeight = FontWeight.Medium
                                     )
                                 }
 
                                 val oneRmVal = Formulas.calculate1RM(s.weightKg, s.reps)
-                                if (oneRmVal > 0f) {
+                                if (oneRmVal > 0f && s.setType != SetType.WARMUP) {
                                     Text(
-                                        text = "1ПМ: $oneRmVal кг",
+                                        text = "1ПМ: ${Formulas.formatWeight(oneRmVal, isKg)}",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )

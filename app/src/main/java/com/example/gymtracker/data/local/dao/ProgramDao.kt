@@ -39,6 +39,9 @@ interface ProgramDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertProgramDay(day: ProgramDayEntity): Long
 
+    @Update
+    suspend fun updateProgramDay(day: ProgramDayEntity)
+
     @Delete
     suspend fun deleteProgramDay(day: ProgramDayEntity)
 

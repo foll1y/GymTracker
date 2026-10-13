@@ -29,6 +29,9 @@ interface WorkoutDao {
     @Insert
     suspend fun insertWorkout(workout: WorkoutEntity): Long
 
+    @Update
+    suspend fun updateWorkout(workout: WorkoutEntity)
+
     @Insert
     suspend fun insertWorkoutExercises(exercises: List<WorkoutExerciseEntity>): List<Long>
 
@@ -38,17 +41,23 @@ interface WorkoutDao {
     @Delete
     suspend fun deleteWorkout(workout: WorkoutEntity)
 
+    @Query("UPDATE workouts SET note = :note WHERE id = :workoutId")
+    suspend fun updateWorkoutNote(workoutId: Long, note: String)
+
     @Query("UPDATE workouts SET avgHeartRate = :avgHr, maxHeartRate = :maxHr, activeCalories = :calories WHERE id = :workoutId")
     suspend fun updateWorkoutHealthStats(workoutId: Long, avgHr: Int?, maxHr: Int?, calories: Int?)
 
     @Transaction
     @Query("""
         SELECT s.* FROM set_entries s
-        JOIN workout_exercises we ON s.workoutExerciseId = we.id
-        JOIN workouts w ON we.workoutId = w.id
-        WHERE we.exerciseId = :exerciseId
-        ORDER BY w.dateEpochMillis DESC, s.orderIndex ASC
-        LIMIT 10
+        WHERE s.workoutExerciseId = (
+            SELECT we.id FROM workout_exercises we
+            JOIN workouts w ON we.workoutId = w.id
+            WHERE we.exerciseId = :exerciseId
+            ORDER BY w.dateEpochMillis DESC, we.id DESC
+            LIMIT 1
+        )
+        ORDER BY s.orderIndex ASC
     """)
     suspend fun getLastSetsForExercise(exerciseId: Long): List<SetEntryEntity>
 
@@ -58,8 +67,8 @@ interface WorkoutDao {
         FROM set_entries s
         JOIN workout_exercises we ON s.workoutExerciseId = we.id
         JOIN workouts w ON we.workoutId = w.id
-        WHERE we.exerciseId = :exerciseId AND (s.isCompleted = 1 OR s.reps > 0 OR s.weightKg > 0)
-        ORDER BY w.dateEpochMillis ASC
+        WHERE we.exerciseId = :exerciseId AND s.isCompleted = 1 AND (s.reps > 0 OR s.weightKg > 0)
+        ORDER BY w.dateEpochMillis ASC, s.orderIndex ASC
     """)
     fun getExerciseHistory(exerciseId: Long): Flow<List<RawHistoryEntry>>
 }

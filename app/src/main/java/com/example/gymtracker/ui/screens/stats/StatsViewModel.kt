@@ -8,6 +8,7 @@ import com.example.gymtracker.data.local.dao.WorkoutDao
 import com.example.gymtracker.data.local.entity.ExerciseEntity
 import com.example.gymtracker.data.model.MuscleGroup
 import com.example.gymtracker.data.model.SetType
+import com.example.gymtracker.data.preferences.UserPreferencesManager
 import com.example.gymtracker.domain.Formulas
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -28,6 +29,7 @@ data class ExerciseStat(
     val maxWeightKg: Float,
     val repsAtMaxWeight: Int,
     val oneRepMaxKg: Float,
+    val workingTonnageKg: Float,
     val totalSets: Int
 )
 
@@ -35,6 +37,7 @@ data class MuscleGroupStat(
     val group: MuscleGroup,
     val maxOneRepMaxKg: Float,
     val maxWeightKg: Float,
+    val workingTonnageKg: Float,
     val bestExerciseName: String,
     val totalSets: Int,
     val share: Float,
@@ -47,6 +50,7 @@ data class StatsUiState(
     val maxWorkingWeightKg: Float = 0f,
     val maxOneRepMaxKg: Float = 0f,
     val maxOneRepMaxExercise: String = "",
+    val totalWorkingTonnageKg: Float = 0f,
     val totalSets: Int = 0,
     val averageDurationMinutes: Int = 0,
     val currentStreak: Int = 0,
@@ -58,11 +62,13 @@ data class StatsUiState(
 @HiltViewModel
 class StatsViewModel @Inject constructor(
     private val workoutDao: WorkoutDao,
-    private val exerciseDao: ExerciseDao
+    private val exerciseDao: ExerciseDao,
+    userPreferences: UserPreferencesManager
 ) : ViewModel() {
 
     private val _period = MutableStateFlow(StatsPeriod.MONTH)
     val period: StateFlow<StatsPeriod> = _period.asStateFlow()
+    val isKg: StateFlow<Boolean> = userPreferences.isKg
 
     fun getExerciseHistory(exerciseId: Long): Flow<List<RawHistoryEntry>> = workoutDao.getExerciseHistory(exerciseId)
 
@@ -84,6 +90,7 @@ class StatsViewModel @Inject constructor(
         var overallMaxWeight = 0f
         var overallMax1RM = 0f
         var overallBestExercise = ""
+        var totalWorkingTonnage = 0f
 
         val muscleSetsCount = mutableMapOf<MuscleGroup, Int>()
 
@@ -94,6 +101,7 @@ class StatsViewModel @Inject constructor(
             var maxWeight: Float = 0f,
             var repsAtMax: Int = 0,
             var max1RM: Float = 0f,
+            var workingTonnage: Float = 0f,
             var setsCount: Int = 0
         )
 
@@ -107,14 +115,18 @@ class StatsViewModel @Inject constructor(
                 }
 
                 ex.sets.forEach { s ->
-                    val isDone = s.isCompleted || s.reps > 0 || s.weightKg > 0f
-                    if (isDone && (s.reps > 0 || s.weightKg > 0f)) {
+                    if (s.isCompleted && (s.reps > 0 || s.weightKg > 0f)) {
                         totalSets++
                         muscleSetsCount[group] = (muscleSetsCount[group] ?: 0) + 1
                         exAgg.setsCount++
 
-                        // Исключаем разминочные сеты из рекордов и 1ПМ
                         if (s.setType != SetType.WARMUP) {
+                            if (s.weightKg > 0f && s.reps > 0) {
+                                val setTonnage = s.weightKg * s.reps
+                                totalWorkingTonnage += setTonnage
+                                exAgg.workingTonnage += setTonnage
+                            }
+
                             val oneRm = if (s.weightKg > 0f && s.reps > 0) {
                                 Formulas.calculate1RM(s.weightKg, s.reps)
                             } else if (s.weightKg > 0f) {
@@ -151,6 +163,7 @@ class StatsViewModel @Inject constructor(
                         maxWeightKg = it.maxWeight,
                         repsAtMaxWeight = it.repsAtMax,
                         oneRepMaxKg = it.max1RM,
+                        workingTonnageKg = it.workingTonnage,
                         totalSets = it.setsCount
                     )
                 }
@@ -159,6 +172,7 @@ class StatsViewModel @Inject constructor(
             val sets = muscleSetsCount[group] ?: 0
             val max1RM = groupExercises.firstOrNull()?.oneRepMaxKg ?: 0f
             val maxWeight = groupExercises.maxOfOrNull { it.maxWeightKg } ?: 0f
+            val groupTonnage = groupExercises.sumOf { it.workingTonnageKg.toDouble() }.toFloat()
             val bestExName = groupExercises.firstOrNull()?.exerciseName ?: ""
             val share = sets / totalMuscleSets
 
@@ -166,6 +180,7 @@ class StatsViewModel @Inject constructor(
                 group = group,
                 maxOneRepMaxKg = max1RM,
                 maxWeightKg = maxWeight,
+                workingTonnageKg = groupTonnage,
                 bestExerciseName = bestExName,
                 totalSets = sets,
                 share = share,
@@ -186,6 +201,7 @@ class StatsViewModel @Inject constructor(
             maxWorkingWeightKg = overallMaxWeight,
             maxOneRepMaxKg = overallMax1RM,
             maxOneRepMaxExercise = overallBestExercise,
+            totalWorkingTonnageKg = totalWorkingTonnage,
             totalSets = totalSets,
             averageDurationMinutes = if (filtered.isNotEmpty()) filtered.sumOf { it.workout.durationMinutes } / filtered.size else 0,
             currentStreak = streak,

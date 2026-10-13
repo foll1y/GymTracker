@@ -15,7 +15,9 @@ data class ExerciseEntity(
     val setupTip: String = "",
     val executionTip: String = "",
     val mistakeTip: String = "",
-    val imagePath: String = ""
+    val imagePath: String = "",
+    val equipment: String = "",
+    val nameEn: String = ""
 )
 
 @Entity(tableName = "workouts")
@@ -133,35 +135,4 @@ data class ProgramDayExerciseEntity(
     val targetReps: String = "8-12",
     val targetWeightKg: Float? = null,
     val supersetLabel: String? = null
-)
-
-@Entity(tableName = "templates")
-data class TemplateEntity(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val name: String
-)
-
-@Entity(
-    tableName = "template_exercises",
-    foreignKeys = [
-        ForeignKey(
-            entity = TemplateEntity::class,
-            parentColumns = ["id"],
-            childColumns = ["templateId"],
-            onDelete = ForeignKey.CASCADE
-        ),
-        ForeignKey(
-            entity = ExerciseEntity::class,
-            parentColumns = ["id"],
-            childColumns = ["exerciseId"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ],
-    indices = [Index("templateId"), Index("exerciseId")]
-)
-data class TemplateExerciseEntity(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val templateId: Long,
-    val exerciseId: Long,
-    val orderIndex: Int
 )

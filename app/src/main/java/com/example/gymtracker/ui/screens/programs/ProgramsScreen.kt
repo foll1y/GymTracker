@@ -1,6 +1,5 @@
 package com.example.gymtracker.ui.screens.programs
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -20,9 +19,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.gymtracker.data.local.entity.ExerciseEntity
-import com.example.gymtracker.data.local.entity.ProgramDayExerciseEntity
 import com.example.gymtracker.data.model.ExerciseType
 import com.example.gymtracker.data.model.MuscleGroup
+import com.example.gymtracker.data.model.ProgramDayExerciseWithExercise
+import com.example.gymtracker.domain.Formulas
 import com.example.gymtracker.ui.components.TechniqueBottomSheet
 import kotlinx.coroutines.launch
 
@@ -34,6 +34,8 @@ fun ProgramsScreen(
 ) {
     val programs by viewModel.programs.collectAsState()
     val allExercises by viewModel.allExercises.collectAsState(initial = emptyList())
+    val isKg by viewModel.isKg.collectAsState()
+    val unitLabel = Formulas.unitLabel(isKg)
     val coroutineScope = rememberCoroutineScope()
 
     var selectedProgramIndex by remember { mutableStateOf(0) }
@@ -43,10 +45,18 @@ fun ProgramsScreen(
     var newProgramTitle by remember { mutableStateOf("") }
     var newProgramDesc by remember { mutableStateOf("") }
 
+    var showEditProgramDialog by remember { mutableStateOf(false) }
+    var editProgramTitle by remember { mutableStateOf("") }
+    var editProgramDesc by remember { mutableStateOf("") }
+
     var showDeleteProgramDialog by remember { mutableStateOf(false) }
+    var showDeleteDayDialog by remember { mutableStateOf(false) }
 
     var showAddDayDialog by remember { mutableStateOf(false) }
     var newDayName by remember { mutableStateOf("") }
+
+    var showRenameDayDialog by remember { mutableStateOf(false) }
+    var renameDayInput by remember { mutableStateOf("") }
 
     var showAddExerciseDialog by remember { mutableStateOf(false) }
     var selectedExerciseForAdd by remember { mutableStateOf<ExerciseEntity?>(null) }
@@ -54,15 +64,21 @@ fun ProgramsScreen(
     var targetRepsInput by remember { mutableStateOf("8-12") }
     var targetWeightInput by remember { mutableStateOf("") }
 
+    var editingPlanExercise by remember { mutableStateOf<ProgramDayExerciseWithExercise?>(null) }
+    var editSetsInput by remember { mutableStateOf("3") }
+    var editRepsInput by remember { mutableStateOf("8-12") }
+    var editWeightInput by remember { mutableStateOf("") }
+
     var exerciseSearchQuery by remember { mutableStateOf("") }
     var filterMuscleGroup by remember { mutableStateOf<MuscleGroup?>(null) }
+    var filterEquipment by remember { mutableStateOf<String?>(null) }
     var customExName by remember { mutableStateOf("") }
 
     var selectedExerciseForTechnique by remember { mutableStateOf<ExerciseEntity?>(null) }
     var planExerciseForSupersetPairing by remember { mutableStateOf<Long?>(null) }
 
     val currentProgram = programs.getOrNull(selectedProgramIndex) ?: programs.firstOrNull()
-    val currentDays = currentProgram?.days ?: emptyList()
+    val currentDays = currentProgram?.days?.sortedBy { it.day.orderIndex } ?: emptyList()
     val currentDay = currentDays.getOrNull(selectedDayIndex) ?: currentDays.firstOrNull()
 
     Scaffold(
@@ -86,7 +102,6 @@ fun ProgramsScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Вкладки доступных программ
             if (programs.isNotEmpty()) {
                 item {
                     LazyRow(
@@ -148,7 +163,6 @@ fun ProgramsScreen(
                     }
                 }
             } else {
-                // Карточка выбранной программы
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -201,9 +215,20 @@ fun ProgramsScreen(
                                         }
                                     }
 
-                                    Spacer(Modifier.width(4.dp))
+                                    IconButton(
+                                        onClick = {
+                                            editProgramTitle = currentProgram.program.title
+                                            editProgramDesc = currentProgram.program.description
+                                            showEditProgramDialog = true
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Edit,
+                                            contentDescription = "Редактировать программу",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
 
-                                    // Кнопка удаления программы
                                     IconButton(onClick = { showDeleteProgramDialog = true }) {
                                         Icon(
                                             imageVector = Icons.Default.Delete,
@@ -216,7 +241,6 @@ fun ProgramsScreen(
 
                             Spacer(Modifier.height(14.dp))
 
-                            // Дни программы
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -256,7 +280,6 @@ fun ProgramsScreen(
                     }
                 }
 
-                // Содержимое выбранного дня
                 if (currentDay != null) {
                     item {
                         Button(
@@ -285,8 +308,18 @@ fun ProgramsScreen(
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
-                            IconButton(onClick = { viewModel.deleteProgramDay(currentDay.day) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Удалить день", tint = MaterialTheme.colorScheme.error)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = {
+                                        renameDayInput = currentDay.day.name
+                                        showRenameDayDialog = true
+                                    }
+                                ) {
+                                    Icon(Icons.Default.Edit, contentDescription = "Переименовать день", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                IconButton(onClick = { showDeleteDayDialog = true }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Удалить день", tint = MaterialTheme.colorScheme.error)
+                                }
                             }
                         }
                     }
@@ -369,7 +402,10 @@ fun ProgramsScreen(
                                             }
 
                                             if (planEx.planExercise.supersetLabel != null) {
-                                                val partner = sortedExercises.find { it.planExercise.id != planEx.planExercise.id && it.planExercise.supersetLabel == planEx.planExercise.supersetLabel }
+                                                val partner = sortedExercises.find {
+                                                    it.planExercise.id != planEx.planExercise.id &&
+                                                        it.planExercise.supersetLabel == planEx.planExercise.supersetLabel
+                                                }
                                                 if (partner != null) {
                                                     Text(
                                                         text = "В связке с: " + partner.exercise.name,
@@ -383,7 +419,6 @@ fun ProgramsScreen(
                                         }
 
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            // Суперсет кнопка или бейдж
                                             if (planEx.planExercise.supersetLabel != null) {
                                                 Surface(
                                                     shape = RoundedCornerShape(8.dp),
@@ -425,7 +460,6 @@ fun ProgramsScreen(
                                                 }
                                             }
 
-                                            // Перемещение (стрелки + рукоятка)
                                             if (exIndex > 0) {
                                                 IconButton(
                                                     onClick = { viewModel.reorderExercisesInDay(currentDay.day.id, exIndex, exIndex - 1) },
@@ -452,12 +486,6 @@ fun ProgramsScreen(
                                                     )
                                                 }
                                             }
-                                            Icon(
-                                                imageVector = Icons.Default.DragHandle,
-                                                contentDescription = "Перетащить",
-                                                tint = MaterialTheme.colorScheme.outline,
-                                                modifier = Modifier.size(20.dp).padding(horizontal = 2.dp)
-                                            )
 
                                             IconButton(
                                                 onClick = { selectedExerciseForTechnique = planEx.exercise },
@@ -486,24 +514,47 @@ fun ProgramsScreen(
 
                                     Spacer(Modifier.height(10.dp))
 
+                                    // Кликабельная плашка плана (открывает редактирование подходов/веса)
                                     Surface(
                                         shape = RoundedCornerShape(12.dp),
-                                        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f),
-                                        modifier = Modifier.fillMaxWidth()
+                                        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable {
+                                                editingPlanExercise = planEx
+                                                editSetsInput = planEx.planExercise.targetSets.toString()
+                                                editRepsInput = planEx.planExercise.targetReps
+                                                val wKg = planEx.planExercise.targetWeightKg
+                                                editWeightInput = if (wKg != null && wKg > 0f) {
+                                                    Formulas.formatNumber(Formulas.convertWeight(wKg, isKg))
+                                                } else ""
+                                            }
                                     ) {
                                         Row(
                                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Text(
-                                                text = "План: ${planEx.planExercise.targetSets} подх. × ${planEx.planExercise.targetReps} повт.",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = FontWeight.Medium
-                                            )
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Text(
+                                                    text = "План: ${planEx.planExercise.targetSets} подх. × ${planEx.planExercise.targetReps} повт.",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                                Icon(
+                                                    imageVector = Icons.Default.Edit,
+                                                    contentDescription = "Изменить план упражнения",
+                                                    modifier = Modifier.size(14.dp),
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
                                             if (planEx.planExercise.targetWeightKg != null && planEx.planExercise.targetWeightKg > 0f) {
                                                 Text(
-                                                    text = "Цель: ${planEx.planExercise.targetWeightKg} кг",
+                                                    text = "Цель: ${Formulas.formatWeight(planEx.planExercise.targetWeightKg, isKg)}",
                                                     style = MaterialTheme.typography.labelMedium,
                                                     fontWeight = FontWeight.Bold,
                                                     color = MaterialTheme.colorScheme.primary
@@ -579,6 +630,50 @@ fun ProgramsScreen(
         )
     }
 
+    // 1b. Диалог редактирования программы
+    if (showEditProgramDialog && currentProgram != null) {
+        AlertDialog(
+            onDismissRequest = { showEditProgramDialog = false },
+            shape = RoundedCornerShape(24.dp),
+            title = { Text("Редактировать программу", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = editProgramTitle,
+                        onValueChange = { editProgramTitle = it },
+                        label = { Text("Название программы") },
+                        shape = RoundedCornerShape(14.dp),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editProgramDesc,
+                        onValueChange = { editProgramDesc = it },
+                        label = { Text("Описание") },
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (editProgramTitle.isNotBlank()) {
+                            viewModel.updateProgram(currentProgram.program, editProgramTitle, editProgramDesc)
+                            showEditProgramDialog = false
+                        }
+                    },
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Сохранить")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditProgramDialog = false }) { Text("Отмена") }
+            }
+        )
+    }
+
     // 2. Диалог подтверждения удаления программы
     if (showDeleteProgramDialog && currentProgram != null) {
         AlertDialog(
@@ -604,6 +699,34 @@ fun ProgramsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteProgramDialog = false }) { Text("Отмена") }
+            }
+        )
+    }
+
+    // 2b. Диалог подтверждения удаления дня
+    if (showDeleteDayDialog && currentDay != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDayDialog = false },
+            shape = RoundedCornerShape(24.dp),
+            title = { Text("Удалить тренировочный день?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("День «${currentDay.day.name}» и все запланированные в нём упражнения будут удалены.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteProgramDay(currentDay.day)
+                        selectedDayIndex = 0
+                        showDeleteDayDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Удалить", color = MaterialTheme.colorScheme.onError)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDayDialog = false }) { Text("Отмена") }
             }
         )
     }
@@ -644,8 +767,110 @@ fun ProgramsScreen(
         )
     }
 
-    // 4. Диалог выбора и настройки упражнения в план
+    // 3b. Диалог переименования дня
+    if (showRenameDayDialog && currentDay != null) {
+        AlertDialog(
+            onDismissRequest = { showRenameDayDialog = false },
+            shape = RoundedCornerShape(24.dp),
+            title = { Text("Переименовать день", fontWeight = FontWeight.Bold) },
+            text = {
+                OutlinedTextField(
+                    value = renameDayInput,
+                    onValueChange = { renameDayInput = it },
+                    label = { Text("Название тренировочного дня") },
+                    shape = RoundedCornerShape(14.dp),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (renameDayInput.isNotBlank()) {
+                            viewModel.renameProgramDay(currentDay.day, renameDayInput)
+                            showRenameDayDialog = false
+                        }
+                    },
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Сохранить")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameDayDialog = false }) { Text("Отмена") }
+            }
+        )
+    }
+
+    // 4. Диалог редактирования параметров упражнения в плане
+    if (editingPlanExercise != null) {
+        val item = editingPlanExercise!!
+        AlertDialog(
+            onDismissRequest = { editingPlanExercise = null },
+            shape = RoundedCornerShape(24.dp),
+            title = { Text("Изменить план упражнения", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(item.exercise.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    OutlinedTextField(
+                        value = editSetsInput,
+                        onValueChange = { editSetsInput = it },
+                        label = { Text("Количество подходов") },
+                        shape = RoundedCornerShape(14.dp),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editRepsInput,
+                        onValueChange = { editRepsInput = it },
+                        label = { Text("Диапазон повторений (например: 8-12)") },
+                        shape = RoundedCornerShape(14.dp),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (item.exercise.exerciseType != ExerciseType.BODYWEIGHT_ONLY) {
+                        OutlinedTextField(
+                            value = editWeightInput,
+                            onValueChange = { editWeightInput = it.replace(',', '.') },
+                            label = { Text("Целевой вес ($unitLabel, опционально)") },
+                            shape = RoundedCornerShape(14.dp),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val sets = editSetsInput.toIntOrNull()?.coerceIn(1, 20) ?: item.planExercise.targetSets
+                        val reps = editRepsInput.trim().ifBlank { item.planExercise.targetReps }
+                        val rawW = editWeightInput.toFloatOrNull()
+                        val weightKg = if (rawW != null && rawW > 0f) Formulas.toKg(rawW, isKg) else null
+                        viewModel.updateExerciseInDay(
+                            item.planExercise.copy(
+                                targetSets = sets,
+                                targetReps = reps,
+                                targetWeightKg = weightKg
+                            )
+                        )
+                        editingPlanExercise = null
+                    },
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Сохранить")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingPlanExercise = null }) { Text("Отмена") }
+            }
+        )
+    }
+
+    // 5. Диалог выбора и настройки упражнения в план
     if (showAddExerciseDialog && currentDay != null) {
+        val equipmentOptions = remember { viewModel.getAvailableEquipment() }
+
         AlertDialog(
             onDismissRequest = {
                 showAddExerciseDialog = false
@@ -664,7 +889,7 @@ fun ProgramsScreen(
                         OutlinedTextField(
                             value = exerciseSearchQuery,
                             onValueChange = { exerciseSearchQuery = it },
-                            label = { Text("Поиск упражнения") },
+                            label = { Text("Поиск (рус / англ / инвентарь)") },
                             shape = RoundedCornerShape(14.dp),
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
@@ -678,7 +903,7 @@ fun ProgramsScreen(
                                 FilterChip(
                                     selected = filterMuscleGroup == null,
                                     onClick = { filterMuscleGroup = null },
-                                    label = { Text("Все") }
+                                    label = { Text("Все мышцы") }
                                 )
                             }
                             items(MuscleGroup.values()) { g ->
@@ -689,30 +914,60 @@ fun ProgramsScreen(
                                 )
                             }
                         }
+
+                        if (equipmentOptions.isNotEmpty()) {
+                            Spacer(Modifier.height(4.dp))
+                            LazyRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                item {
+                                    FilterChip(
+                                        selected = filterEquipment == null,
+                                        onClick = { filterEquipment = null },
+                                        label = { Text("Любой инвентарь", style = MaterialTheme.typography.labelSmall) }
+                                    )
+                                }
+                                items(equipmentOptions) { eq ->
+                                    FilterChip(
+                                        selected = filterEquipment == eq,
+                                        onClick = { filterEquipment = if (filterEquipment == eq) null else eq },
+                                        label = { Text(eq, style = MaterialTheme.typography.labelSmall) }
+                                    )
+                                }
+                            }
+                        }
+
                         Spacer(Modifier.height(8.dp))
 
                         val q = exerciseSearchQuery.trim().lowercase()
                         val filteredList = allExercises.filter { ex ->
                             val matchGroup = filterMuscleGroup == null || ex.muscleGroup == filterMuscleGroup
-                            val matchQ = q.isEmpty() || ex.name.lowercase().contains(q) || ex.muscleGroup.titleRu.lowercase().contains(q)
-                            matchGroup && matchQ
+                            val matchEq = filterEquipment == null || ex.equipment.equals(filterEquipment, ignoreCase = true)
+                            val matchQ = q.isEmpty() ||
+                                ex.name.lowercase().contains(q) ||
+                                ex.nameEn.lowercase().contains(q) ||
+                                ex.muscleGroup.titleRu.lowercase().contains(q) ||
+                                ex.equipment.lowercase().contains(q)
+                            matchGroup && matchEq && matchQ
                         }
 
                         val existingNames = remember(allExercises) { allExercises.map { it.name.lowercase().trim() }.toSet() }
-                        val onlineMatches = remember(exerciseSearchQuery, filterMuscleGroup, allExercises) {
-                            if (exerciseSearchQuery.isNotBlank() || filterMuscleGroup != null) {
-                                viewModel.searchCatalog(exerciseSearchQuery, filterMuscleGroup)
+                        val onlineMatches = remember(exerciseSearchQuery, filterMuscleGroup, filterEquipment, allExercises) {
+                            if (exerciseSearchQuery.isNotBlank() || filterMuscleGroup != null || filterEquipment != null) {
+                                viewModel.searchCatalog(exerciseSearchQuery, filterMuscleGroup, filterEquipment)
                                     .filter { it.name.lowercase().trim() !in existingNames }
-                                    .take(20)
+                                    .take(25)
                             } else emptyList()
                         }
 
-                        LazyColumn(Modifier.height(240.dp)) {
+                        LazyColumn(Modifier.height(230.dp)) {
                             items(filteredList.size) { i ->
                                 val ex = filteredList[i]
+                                val eqSuffix = if (ex.equipment.isNotBlank()) " • ${ex.equipment}" else ""
                                 ListItem(
                                     headlineContent = { Text(ex.name, fontWeight = FontWeight.SemiBold) },
-                                    supportingContent = { Text("${ex.muscleGroup.titleRu} • ${ex.exerciseType.titleRu}") },
+                                    supportingContent = { Text("${ex.muscleGroup.titleRu} • ${ex.exerciseType.titleRu}$eqSuffix") },
                                     modifier = Modifier.fillMaxWidth().clickable {
                                         selectedExerciseForAdd = ex
                                     }
@@ -737,9 +992,12 @@ fun ProgramsScreen(
                                 }
                                 items(onlineMatches.size) { i ->
                                     val ex = onlineMatches[i]
+                                    val eqSuffix = if (ex.equipment.isNotBlank()) " • ${ex.equipment}" else ""
                                     ListItem(
                                         headlineContent = { Text(ex.name, fontWeight = FontWeight.SemiBold) },
-                                        supportingContent = { Text("${ex.muscleGroup.titleRu} • ${ex.exerciseType.titleRu}", color = MaterialTheme.colorScheme.secondary) },
+                                        supportingContent = {
+                                            Text("${ex.muscleGroup.titleRu} • ${ex.exerciseType.titleRu}$eqSuffix", color = MaterialTheme.colorScheme.secondary)
+                                        },
                                         modifier = Modifier.fillMaxWidth(),
                                         trailingContent = {
                                             Button(
@@ -819,8 +1077,8 @@ fun ProgramsScreen(
                             Spacer(Modifier.height(10.dp))
                             OutlinedTextField(
                                 value = targetWeightInput,
-                                onValueChange = { targetWeightInput = it },
-                                label = { Text("Целевой вес (кг, опционально)") },
+                                onValueChange = { targetWeightInput = it.replace(',', '.') },
+                                label = { Text("Целевой вес ($unitLabel, опционально)") },
                                 placeholder = { Text("Например: 80") },
                                 shape = RoundedCornerShape(14.dp),
                                 singleLine = true,
@@ -836,13 +1094,14 @@ fun ProgramsScreen(
                         onClick = {
                             val sets = targetSetsInput.toIntOrNull() ?: 3
                             val reps = if (targetRepsInput.isNotBlank()) targetRepsInput.trim() else "8-12"
-                            val weight = targetWeightInput.toFloatOrNull()
+                            val rawW = targetWeightInput.toFloatOrNull()
+                            val weightKg = if (rawW != null && rawW > 0f) Formulas.toKg(rawW, isKg) else null
                             viewModel.addExerciseToDay(
                                 dayId = currentDay.day.id,
                                 exerciseId = selectedExerciseForAdd!!.id,
                                 targetSets = sets,
                                 targetReps = reps,
-                                targetWeight = weight
+                                targetWeight = weightKg
                             )
                             selectedExerciseForAdd = null
                             showAddExerciseDialog = false
@@ -868,7 +1127,6 @@ fun ProgramsScreen(
         )
     }
 
-    // 5. Шторка подсказки по технике (BottomSheet)
     if (selectedExerciseForTechnique != null) {
         TechniqueBottomSheet(
             exercise = selectedExerciseForTechnique,

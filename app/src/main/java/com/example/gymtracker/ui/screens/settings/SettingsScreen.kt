@@ -14,15 +14,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.health.connect.client.PermissionController
+import androidx.hilt.navigation.compose.hiltViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
 @Composable
 fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
     val context = LocalContext.current
-    var isKg by remember { mutableStateOf(true) }
+    val isKg by viewModel.isKg.collectAsState()
+    val defaultRestSeconds by viewModel.defaultRestSeconds.collectAsState()
+    val autoStartRestTimer by viewModel.autoStartRestTimer.collectAsState()
     val isConnected by viewModel.isHealthConnected.collectAsState()
     val isImportingCatalog by viewModel.isImportingCatalog.collectAsState()
     val statusMsg by viewModel.statusMessage.collectAsState()
@@ -69,7 +71,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                 Text("Настройки", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             }
 
-            // 1. Полная база упражнений (900+)
+            // 1. Таймер отдыха между подходами
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -78,37 +80,45 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                 ) {
                     Column(Modifier.padding(18.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.MenuBook, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.Default.Timer, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.width(10.dp))
-                            Text("Энциклопедия упражнений", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("Таймер отдыха", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         }
 
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "Расширенная база содержит 900+ упражнений на русском языке с техникой выполнения и фотографиями.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Spacer(Modifier.height(10.dp))
 
-                        Spacer(Modifier.height(14.dp))
-                        Button(
-                            onClick = { viewModel.importFullCatalog() },
-                            enabled = !isImportingCatalog,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.fillMaxWidth()
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            if (isImportingCatalog) {
-                                CircularProgressIndicator(
-                                    color = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.size(20.dp),
-                                    strokeWidth = 2.dp
+                            Column(Modifier.weight(1f)) {
+                                Text("Автозапуск после подхода", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    "Запускать обратный отсчёт при отметке подхода выполненным",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                Spacer(Modifier.width(8.dp))
-                                Text("Импортирую 900+ упражнений...")
-                            } else {
-                                Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(20.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text("Загрузить полную базу (900+ упражнений)")
+                            }
+                            Switch(
+                                checked = autoStartRestTimer,
+                                onCheckedChange = { viewModel.setAutoStartRestTimer(it) }
+                            )
+                        }
+
+                        Spacer(Modifier.height(12.dp))
+                        Text("Базовое время отдыха:", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(6.dp))
+
+                        val presets = listOf(60, 90, 120, 180)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            presets.forEach { sec ->
+                                FilterChip(
+                                    selected = defaultRestSeconds == sec,
+                                    onClick = { viewModel.setDefaultRestSeconds(sec) },
+                                    shape = RoundedCornerShape(12.dp),
+                                    label = { Text("${sec}с") }
+                                )
                             }
                         }
                     }
@@ -128,13 +138,13 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             FilterChip(
                                 selected = isKg,
-                                onClick = { isKg = true },
+                                onClick = { viewModel.setUseKg(true) },
                                 shape = RoundedCornerShape(12.dp),
                                 label = { Text("Килограммы (кг)") }
                             )
                             FilterChip(
                                 selected = !isKg,
-                                onClick = { isKg = false },
+                                onClick = { viewModel.setUseKg(false) },
                                 shape = RoundedCornerShape(12.dp),
                                 label = { Text("Фунты (lbs)") }
                             )
@@ -143,7 +153,53 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                 }
             }
 
-            // 3. Резервное копирование и перенос (JSON)
+            // 3. Полная база упражнений (900+)
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                ) {
+                    Column(Modifier.padding(18.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.MenuBook, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(10.dp))
+                            Text("Энциклопедия упражнений", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Расширенная база содержит 970+ упражнений на русском языке с техникой выполнения, инвентарём и фотографиями.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Spacer(Modifier.height(14.dp))
+                        Button(
+                            onClick = { viewModel.importFullCatalog() },
+                            enabled = !isImportingCatalog,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (isImportingCatalog) {
+                                CircularProgressIndicator(
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("Импортирую 970+ упражнений...")
+                            } else {
+                                Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Загрузить полную базу (970+ упражнений)")
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4. Резервное копирование и перенос (JSON)
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -196,7 +252,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                 }
             }
 
-            // 4. Смарт-часы (Health Connect / OHealth)
+            // 5. Смарт-часы (Health Connect / OHealth)
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),

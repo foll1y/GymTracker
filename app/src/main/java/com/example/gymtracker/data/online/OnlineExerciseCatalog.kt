@@ -29,10 +29,12 @@ class OnlineExerciseCatalog @Inject constructor(
             for (i in 0 until array.length()) {
                 val obj = array.getJSONObject(i)
                 val name = obj.getString("name")
+                val nameEn = obj.optString("nameEn", "")
                 val muscleStr = obj.optString("muscleGroup", "CHEST")
                 val muscle = try { enumValueOf<MuscleGroup>(muscleStr) } catch (e: Exception) { MuscleGroup.CHEST }
                 val typeStr = obj.optString("exerciseType", "WEIGHT_AND_REPS")
                 val exType = try { enumValueOf<ExerciseType>(typeStr) } catch (e: Exception) { ExerciseType.WEIGHT_AND_REPS }
+                val equipment = obj.optString("equipment", "").trim()
                 val setup = obj.optString("setupTip", "")
                 val exec = obj.optString("executionTip", "")
                 val mistake = obj.optString("mistakeTip", "")
@@ -41,9 +43,11 @@ class OnlineExerciseCatalog @Inject constructor(
                 list.add(
                     ExerciseEntity(
                         name = name,
+                        nameEn = nameEn,
                         muscleGroup = muscle,
                         isCustom = false,
                         exerciseType = exType,
+                        equipment = equipment,
                         setupTip = setup,
                         executionTip = exec,
                         mistakeTip = mistake,
@@ -58,13 +62,30 @@ class OnlineExerciseCatalog @Inject constructor(
         }
     }
 
-    fun search(query: String, filterGroup: MuscleGroup?): List<ExerciseEntity> {
+    fun getAvailableEquipment(): List<String> {
+        return loadCatalog()
+            .map { it.equipment.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+    }
+
+    fun search(
+        query: String,
+        filterGroup: MuscleGroup?,
+        filterEquipment: String? = null
+    ): List<ExerciseEntity> {
         val q = query.trim().lowercase()
+        val eqFilter = filterEquipment?.trim()?.lowercase()
         val catalog = loadCatalog()
         return catalog.filter { ex ->
             val matchesGroup = filterGroup == null || ex.muscleGroup == filterGroup
-            val matchesQuery = q.isEmpty() || ex.name.lowercase().contains(q) || ex.muscleGroup.titleRu.lowercase().contains(q)
-            matchesGroup && matchesQuery
+            val matchesEquipment = eqFilter.isNullOrEmpty() || ex.equipment.lowercase() == eqFilter
+            val matchesQuery = q.isEmpty() ||
+                ex.name.lowercase().contains(q) ||
+                ex.nameEn.lowercase().contains(q) ||
+                ex.muscleGroup.titleRu.lowercase().contains(q) ||
+                ex.equipment.lowercase().contains(q)
+            matchesGroup && matchesEquipment && matchesQuery
         }
     }
 
