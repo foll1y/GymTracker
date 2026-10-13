@@ -10,6 +10,7 @@ import com.example.gymtracker.data.model.MuscleGroup
 import com.example.gymtracker.data.model.SetType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Provider
 
@@ -739,5 +740,61 @@ abstract class AppDatabase : RoomDatabase() {
                 imagePath = "Russian_Twist"
             )
         )
+    }
+}
+
+@javax.inject.Singleton
+class UserPreferencesManager @javax.inject.Inject constructor(
+    @dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context
+) {
+    private val prefs = context.getSharedPreferences("gym_tracker_prefs", android.content.Context.MODE_PRIVATE)
+
+    private val _isKg = kotlinx.coroutines.flow.MutableStateFlow(prefs.getBoolean(KEY_IS_KG, true))
+    val isKg: kotlinx.coroutines.flow.StateFlow<Boolean> = _isKg.asStateFlow()
+
+    private val _defaultRestSeconds = kotlinx.coroutines.flow.MutableStateFlow(prefs.getInt(KEY_REST_SECONDS, 90))
+    val defaultRestSeconds: kotlinx.coroutines.flow.StateFlow<Int> = _defaultRestSeconds.asStateFlow()
+
+    private val _autoStartRestTimer = kotlinx.coroutines.flow.MutableStateFlow(prefs.getBoolean(KEY_AUTO_REST_TIMER, true))
+    val autoStartRestTimer: kotlinx.coroutines.flow.StateFlow<Boolean> = _autoStartRestTimer.asStateFlow()
+
+    private val _hasActiveDraft = kotlinx.coroutines.flow.MutableStateFlow(!prefs.getString(KEY_WORKOUT_DRAFT, null).isNullOrBlank())
+    val hasActiveDraft: kotlinx.coroutines.flow.StateFlow<Boolean> = _hasActiveDraft.asStateFlow()
+
+    fun setUseKg(useKg: Boolean) {
+        prefs.edit().putBoolean(KEY_IS_KG, useKg).apply()
+        _isKg.value = useKg
+    }
+
+    fun setDefaultRestSeconds(seconds: Int) {
+        val coerced = seconds.coerceIn(15, 600)
+        prefs.edit().putInt(KEY_REST_SECONDS, coerced).apply()
+        _defaultRestSeconds.value = coerced
+    }
+
+    fun setAutoStartRestTimer(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_AUTO_REST_TIMER, enabled).apply()
+        _autoStartRestTimer.value = enabled
+    }
+
+    fun saveWorkoutDraft(draftJson: String) {
+        prefs.edit().putString(KEY_WORKOUT_DRAFT, draftJson).apply()
+        _hasActiveDraft.value = draftJson.isNotBlank()
+    }
+
+    fun loadWorkoutDraft(): String? {
+        return prefs.getString(KEY_WORKOUT_DRAFT, null)?.takeIf { it.isNotBlank() }
+    }
+
+    fun clearWorkoutDraft() {
+        prefs.edit().remove(KEY_WORKOUT_DRAFT).apply()
+        _hasActiveDraft.value = false
+    }
+
+    companion object {
+        private const val KEY_IS_KG = "is_kg"
+        private const val KEY_REST_SECONDS = "default_rest_seconds"
+        private const val KEY_AUTO_REST_TIMER = "auto_start_rest_timer"
+        private const val KEY_WORKOUT_DRAFT = "active_workout_draft_json"
     }
 }

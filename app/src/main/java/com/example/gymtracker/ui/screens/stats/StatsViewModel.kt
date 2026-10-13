@@ -8,7 +8,7 @@ import com.example.gymtracker.data.local.dao.WorkoutDao
 import com.example.gymtracker.data.local.entity.ExerciseEntity
 import com.example.gymtracker.data.model.MuscleGroup
 import com.example.gymtracker.data.model.SetType
-import com.example.gymtracker.data.preferences.UserPreferencesManager
+import com.example.gymtracker.data.local.UserPreferencesManager
 import com.example.gymtracker.domain.Formulas
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*

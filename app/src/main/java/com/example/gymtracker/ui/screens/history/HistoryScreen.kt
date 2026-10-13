@@ -26,7 +26,7 @@ import com.example.gymtracker.data.local.entity.ExerciseEntity
 import com.example.gymtracker.data.local.entity.WorkoutEntity
 import com.example.gymtracker.data.model.SetType
 import com.example.gymtracker.data.model.WorkoutWithDetails
-import com.example.gymtracker.data.preferences.UserPreferencesManager
+import com.example.gymtracker.data.local.UserPreferencesManager
 import com.example.gymtracker.domain.Formulas
 import com.example.gymtracker.ui.components.ExerciseProgressBottomSheet
 import dagger.hilt.android.lifecycle.HiltViewModel

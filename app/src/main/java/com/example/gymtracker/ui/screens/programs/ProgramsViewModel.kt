@@ -8,7 +8,7 @@ import com.example.gymtracker.data.local.entity.*
 import com.example.gymtracker.data.model.MuscleGroup
 import com.example.gymtracker.data.model.ProgramWithDays
 import com.example.gymtracker.data.online.OnlineExerciseCatalog
-import com.example.gymtracker.data.preferences.UserPreferencesManager
+import com.example.gymtracker.data.local.UserPreferencesManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch

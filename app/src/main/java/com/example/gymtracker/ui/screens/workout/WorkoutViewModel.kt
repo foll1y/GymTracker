@@ -12,7 +12,7 @@ import com.example.gymtracker.data.model.ExerciseType
 import com.example.gymtracker.data.model.MuscleGroup
 import com.example.gymtracker.data.model.SetType
 import com.example.gymtracker.data.online.OnlineExerciseCatalog
-import com.example.gymtracker.data.preferences.UserPreferencesManager
+import com.example.gymtracker.data.local.UserPreferencesManager
 import com.example.gymtracker.domain.Formulas
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -109,7 +109,7 @@ class WorkoutViewModel @Inject constructor(
     }
 
     private suspend fun tryRestoreDraft(requestedDayId: Long?): Boolean {
-        val rawJson = userPreferences.loadWorkoutDraft() ?: return false
+        val rawJson: String = userPreferences.loadWorkoutDraft() ?: return false
         return try {
             val root = JSONObject(rawJson)
             val savedDayId = if (root.has("dayId") && !root.isNull("dayId")) root.getLong("dayId") else null

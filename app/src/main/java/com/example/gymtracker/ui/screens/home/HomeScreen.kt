@@ -23,7 +23,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.gymtracker.data.local.dao.ProgramDao
 import com.example.gymtracker.data.local.dao.WorkoutDao
-import com.example.gymtracker.data.preferences.UserPreferencesManager
+import com.example.gymtracker.data.local.UserPreferencesManager
 import com.example.gymtracker.domain.Formulas
 import com.example.gymtracker.ui.theme.ExpressivePrimary
 import com.example.gymtracker.ui.theme.ExpressiveSecondary

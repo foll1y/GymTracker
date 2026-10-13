@@ -7,7 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.gymtracker.data.backup.BackupManager
 import com.example.gymtracker.data.health.HealthConnectManager
 import com.example.gymtracker.data.online.OnlineExerciseCatalog
-import com.example.gymtracker.data.preferences.UserPreferencesManager
+import com.example.gymtracker.data.local.UserPreferencesManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
