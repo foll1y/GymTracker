@@ -2,17 +2,27 @@ package com.example.gymtracker.ui.screens.programs
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.gymtracker.data.local.UserPreferencesManager
 import com.example.gymtracker.data.local.dao.ExerciseDao
 import com.example.gymtracker.data.local.dao.ProgramDao
 import com.example.gymtracker.data.local.entity.*
 import com.example.gymtracker.data.model.MuscleGroup
 import com.example.gymtracker.data.model.ProgramWithDays
 import com.example.gymtracker.data.online.OnlineExerciseCatalog
-import com.example.gymtracker.data.local.UserPreferencesManager
+import com.example.gymtracker.domain.ExerciseMatchSource
+import com.example.gymtracker.domain.LlmPlanParser
+import com.example.gymtracker.domain.ParsedExerciseItem
+import com.example.gymtracker.domain.ParsedProgramPlan
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+enum class LlmImportTargetMode(val titleRu: String) {
+    NEW_PROGRAM("В новую программу"),
+    ADD_DAYS_TO_PROGRAM("Дни в текущую программу"),
+    ADD_TO_CURRENT_DAY("В текущий день")
+}
 
 @HiltViewModel
 class ProgramsViewModel @Inject constructor(
@@ -41,6 +51,183 @@ class ProgramsViewModel @Inject constructor(
     suspend fun importCatalogExercise(exercise: ExerciseEntity): ExerciseEntity {
         val id = exerciseDao.insertExercise(exercise.copy(id = 0, isCustom = false))
         return exercise.copy(id = id)
+    }
+
+    fun parseLlmPlan(rawText: String, localExercises: List<ExerciseEntity>): ParsedProgramPlan {
+        val catalog = onlineCatalog.loadCatalog()
+        return LlmPlanParser.parse(rawText, localExercises, catalog)
+    }
+
+    fun saveImportedPlan(
+        plan: ParsedProgramPlan,
+        mode: LlmImportTargetMode,
+        setAsActive: Boolean,
+        targetProgramId: Long?,
+        targetDayId: Long?,
+        onSaved: () -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            val existingByName = exerciseDao.getAllExercises().first()
+                .associateBy { it.name.trim().lowercase() }
+                .toMutableMap()
+
+            suspend fun resolveExerciseId(item: ParsedExerciseItem): Long {
+                return when (item.matchSource) {
+                    ExerciseMatchSource.LOCAL_DB -> {
+                        val matched = item.matchedExercise
+                        if (matched != null && matched.id > 0) {
+                            matched.id
+                        } else {
+                            val key = item.displayName.trim().lowercase()
+                            existingByName[key]?.id ?: run {
+                                val newEx = ExerciseEntity(
+                                    name = item.displayName.trim().ifBlank { "Упражнение" },
+                                    muscleGroup = item.displayMuscleGroup,
+                                    isCustom = true
+                                )
+                                val newId = exerciseDao.insertExercise(newEx)
+                                existingByName[key] = newEx.copy(id = newId)
+                                newId
+                            }
+                        }
+                    }
+                    ExerciseMatchSource.ONLINE_CATALOG -> {
+                        val catalogEx = item.matchedExercise
+                        if (catalogEx != null) {
+                            val key = catalogEx.name.trim().lowercase()
+                            existingByName[key]?.id ?: run {
+                                val toInsert = catalogEx.copy(id = 0, isCustom = false)
+                                val newId = exerciseDao.insertExercise(toInsert)
+                                existingByName[key] = toInsert.copy(id = newId)
+                                newId
+                            }
+                        } else {
+                            val key = item.displayName.trim().lowercase()
+                            existingByName[key]?.id ?: run {
+                                val newEx = ExerciseEntity(
+                                    name = item.displayName.trim().ifBlank { "Упражнение" },
+                                    muscleGroup = item.displayMuscleGroup,
+                                    isCustom = true
+                                )
+                                val newId = exerciseDao.insertExercise(newEx)
+                                existingByName[key] = newEx.copy(id = newId)
+                                newId
+                            }
+                        }
+                    }
+                    ExerciseMatchSource.NEW_CUSTOM -> {
+                        val finalName = item.customName.trim().ifBlank { item.rawName.trim() }.ifBlank { "Упражнение" }
+                        val key = finalName.lowercase()
+                        existingByName[key]?.id ?: run {
+                            val newEx = ExerciseEntity(
+                                name = finalName,
+                                muscleGroup = item.customMuscleGroup,
+                                isCustom = true
+                            )
+                            val newId = exerciseDao.insertExercise(newEx)
+                            existingByName[key] = newEx.copy(id = newId)
+                            newId
+                        }
+                    }
+                }
+            }
+
+            when (mode) {
+                LlmImportTargetMode.NEW_PROGRAM -> {
+                    val pId = programDao.insertProgram(
+                        ProgramEntity(
+                            title = plan.title.trim().ifBlank { "Программа из LLM" },
+                            description = plan.description.trim(),
+                            isActive = false
+                        )
+                    )
+                    if (setAsActive) {
+                        programDao.setActiveProgram(pId)
+                    }
+                    if (plan.days.isEmpty()) {
+                        programDao.insertProgramDay(
+                            ProgramDayEntity(programId = pId, name = "День 1", orderIndex = 0)
+                        )
+                    } else {
+                        plan.days.forEachIndexed { dIdx, dPlan ->
+                            val dId = programDao.insertProgramDay(
+                                ProgramDayEntity(
+                                    programId = pId,
+                                    name = dPlan.name.trim().ifBlank { "День ${dIdx + 1}" },
+                                    orderIndex = dIdx
+                                )
+                            )
+                            dPlan.exercises.forEachIndexed { exIdx, exItem ->
+                                val exId = resolveExerciseId(exItem)
+                                programDao.insertProgramDayExercise(
+                                    ProgramDayExerciseEntity(
+                                        dayId = dId,
+                                        exerciseId = exId,
+                                        orderIndex = exIdx,
+                                        targetSets = exItem.targetSets.coerceIn(1, 20),
+                                        targetReps = exItem.targetReps.trim().ifBlank { "8-12" },
+                                        targetWeightKg = exItem.targetWeightKg,
+                                        supersetLabel = exItem.supersetLabel
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+
+                LlmImportTargetMode.ADD_DAYS_TO_PROGRAM -> {
+                    val pId = targetProgramId ?: return@launch
+                    val existingProgram = programDao.getProgramWithDaysById(pId)
+                    val startDayIdx = existingProgram?.days?.size ?: 0
+                    plan.days.forEachIndexed { offset, dPlan ->
+                        val dId = programDao.insertProgramDay(
+                            ProgramDayEntity(
+                                programId = pId,
+                                name = dPlan.name.trim().ifBlank { "День ${startDayIdx + offset + 1}" },
+                                orderIndex = startDayIdx + offset
+                            )
+                        )
+                        dPlan.exercises.forEachIndexed { exIdx, exItem ->
+                            val exId = resolveExerciseId(exItem)
+                            programDao.insertProgramDayExercise(
+                                ProgramDayExerciseEntity(
+                                    dayId = dId,
+                                    exerciseId = exId,
+                                    orderIndex = exIdx,
+                                    targetSets = exItem.targetSets.coerceIn(1, 20),
+                                    targetReps = exItem.targetReps.trim().ifBlank { "8-12" },
+                                    targetWeightKg = exItem.targetWeightKg,
+                                    supersetLabel = exItem.supersetLabel
+                                )
+                            )
+                        }
+                    }
+                }
+
+                LlmImportTargetMode.ADD_TO_CURRENT_DAY -> {
+                    val dId = targetDayId ?: return@launch
+                    val existingDay = programDao.getDayWithExercisesById(dId)
+                    var nextExIdx = existingDay?.exercises?.size ?: 0
+                    val allImportedExercises = plan.days.flatMap { it.exercises }
+                    for (exItem in allImportedExercises) {
+                        val exId = resolveExerciseId(exItem)
+                        programDao.insertProgramDayExercise(
+                            ProgramDayExerciseEntity(
+                                dayId = dId,
+                                exerciseId = exId,
+                                orderIndex = nextExIdx++,
+                                targetSets = exItem.targetSets.coerceIn(1, 20),
+                                targetReps = exItem.targetReps.trim().ifBlank { "8-12" },
+                                targetWeightKg = exItem.targetWeightKg,
+                                supersetLabel = exItem.supersetLabel
+                            )
+                        )
+                    }
+                }
+            }
+
+            onSaved()
+        }
     }
 
     fun createProgram(title: String, description: String = "") {

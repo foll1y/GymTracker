@@ -41,6 +41,9 @@ fun ProgramsScreen(
     var selectedProgramIndex by remember { mutableStateOf(0) }
     var selectedDayIndex by remember { mutableStateOf(0) }
 
+    var showLlmImportDialog by remember { mutableStateOf(false) }
+    var llmImportInitialMode by remember { mutableStateOf(LlmImportTargetMode.NEW_PROGRAM) }
+
     var showCreateProgramDialog by remember { mutableStateOf(false) }
     var newProgramTitle by remember { mutableStateOf("") }
     var newProgramDesc by remember { mutableStateOf("") }
@@ -88,6 +91,19 @@ fun ProgramsScreen(
                     Text("Планы и программы", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 },
                 actions = {
+                    FilledTonalButton(
+                        onClick = {
+                            llmImportInitialMode = LlmImportTargetMode.NEW_PROGRAM
+                            showLlmImportDialog = true
+                        },
+                        shape = RoundedCornerShape(14.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(end = 4.dp)
+                    ) {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Из LLM", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    }
                     IconButton(onClick = { showCreateProgramDialog = true }) {
                         Icon(Icons.Default.Add, contentDescription = "Создать программу", tint = MaterialTheme.colorScheme.primary)
                     }
@@ -153,11 +169,25 @@ fun ProgramsScreen(
                             Spacer(Modifier.height(16.dp))
                             Button(
                                 onClick = { showCreateProgramDialog = true },
-                                shape = RoundedCornerShape(16.dp)
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
                                 Icon(Icons.Default.Add, contentDescription = null)
                                 Spacer(Modifier.width(6.dp))
                                 Text("Создать программу")
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = {
+                                    llmImportInitialMode = LlmImportTargetMode.NEW_PROGRAM
+                                    showLlmImportDialog = true
+                                },
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null)
+                                Spacer(Modifier.width(6.dp))
+                                Text("Импортировать из ответа LLM")
                             }
                         }
                     }
@@ -309,6 +339,17 @@ fun ProgramsScreen(
                                 fontWeight = FontWeight.Bold
                             )
                             Row(verticalAlignment = Alignment.CenterVertically) {
+                                TextButton(
+                                    onClick = {
+                                        llmImportInitialMode = LlmImportTargetMode.ADD_TO_CURRENT_DAY
+                                        showLlmImportDialog = true
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(15.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Из LLM в день", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                }
                                 IconButton(
                                     onClick = {
                                         renameDayInput = currentDay.day.name
@@ -1194,6 +1235,38 @@ fun ProgramsScreen(
                     Text("Отмена")
                 }
             }
+        )
+    }
+
+    if (showLlmImportDialog) {
+        LlmImportFlowDialog(
+            initialMode = llmImportInitialMode,
+            hasCurrentProgram = currentProgram != null,
+            currentProgramTitle = currentProgram?.program?.title,
+            hasCurrentDay = currentDay != null,
+            currentDayName = currentDay?.day?.name,
+            allExercises = allExercises,
+            isKg = isKg,
+            unitLabel = unitLabel,
+            onParseText = { rawText -> viewModel.parseLlmPlan(rawText, allExercises) },
+            onSearchCatalog = { q, group -> viewModel.searchCatalog(q, group, null) },
+            onConfirmSave = { plan, mode, setAsActive ->
+                viewModel.saveImportedPlan(
+                    plan = plan,
+                    mode = mode,
+                    setAsActive = setAsActive,
+                    targetProgramId = currentProgram?.program?.id,
+                    targetDayId = currentDay?.day?.id,
+                    onSaved = {
+                        if (mode == LlmImportTargetMode.NEW_PROGRAM) {
+                            selectedProgramIndex = (programs.size).coerceAtLeast(0)
+                            selectedDayIndex = 0
+                        }
+                        showLlmImportDialog = false
+                    }
+                )
+            },
+            onDismiss = { showLlmImportDialog = false }
         )
     }
 }
